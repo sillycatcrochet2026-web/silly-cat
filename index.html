@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Silly Cat Crochê — Amigurumis feitos à mão | São Carlos – SP</title>
+<meta name="description" content="Amigurumis, chaveiros e decorações em crochê feitos à mão com muito carinho e personalidade. Crochê para pessoas descoladas, direto de São Carlos – SP para todo o Brasil.">
+<meta name="theme-color" content="#E23B30">
+<link rel="canonical" href="https://sillycat-croche.github.io/">
+
+<!-- ★ Para o preview do link no Instagram/WhatsApp ficar com imagem: adicione um arquivo og-image.png (1200x630) na raiz do repositório e ajuste a URL abaixo -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Silly Cat Crochê — Amigurumis feitos à mão">
+<meta property="og:description" content="Crochê para pessoas descoladas ✨ Amigurumis e decorações feitos à mão em São Carlos – SP.">
+<meta property="og:image" content="https://sillycat-croche.github.io/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='18' r='10' fill='%23fff' stroke='%233a1e18' stroke-width='1.4'/><path d='M8 10l3 5 4-2z' fill='%23fff' stroke='%233a1e18' stroke-width='1.4'/><path d='M24 10l-3 5-4-2z' fill='%23fff' stroke='%233a1e18' stroke-width='1.4'/><circle cx='12.5' cy='17' r='1.5' fill='%233a1e18'/><path d='M18 17q1.5 1.5 3 0' stroke='%233a1e18' stroke-width='1.3' fill='none' stroke-linecap='round'/><path d='M15 20h2v3z' fill='%23ef6a90'/></svg>">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Pacifico&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --cream:#FBF1E1;
+    --paper:#FFF8EC;
+    --red:#E23B30;
+    --red-deep:#B6271F;
+    --pink:#F6A9C6;
+    --pink-soft:#FBD0E0;
+    --pink-deep:#CF477A;
+    --blue:#AECCEE;
+    --blue-soft:#DCEAF8;
+    --blue-deep:#3F7CBE;
+    --gold:#F4C748;
+    --gold-soft:#FBE7A6;
+    --gold-deep:#C9920E;
+    --ink:#3A1E18;
+    --ink-soft:#6B4A40;
+    --radius:16px;
+    --shadow:0 10px 28px rgba(58,30,24,.14);
+    --shadow-sm:0 4px 14px rgba(58,30,24,.12);
+    --maxw:1120px;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Quicksand",system-ui,sans-serif;
+    color:var(--ink);
+    background:var(--cream);
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit}
+  img{max-width:100%;display:block}
+  ::selection{background:var(--pink);color:var(--ink)}
+
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+
+  /* ---------- Typography ---------- */
+  h1,h2,h3{line-height:1.1;font-weight:700}
+  .script{font-family:"Pacifico",cursive;font-weight:400;line-height:1.3}
+  .eyebrow{
+    font-family:"Special Elite",monospace;
+    text-transform:uppercase;
+    letter-spacing:.22em;
+    font-size:.82rem;
+    color:var(--pink-deep);
+  }
+  .section-head{text-align:center;margin-bottom:34px}
+  .section-head .eyebrow{display:block;margin-bottom:12px}
+
+  /* Scrabble / typewriter tile headings */
+  .tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;font-family:"Special Elite",monospace}
+  .tile{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:1.55em;height:1.7em;padding:0 .12em;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:7px;
+    border:1.5px solid rgba(58,30,24,.22);
+    box-shadow:0 3px 0 rgba(58,30,24,.16);
+    font-size:clamp(1.5rem,5vw,2.5rem);
+    line-height:1;
+  }
+  .tile-space{width:.45em}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;justify-content:center;
+    font-family:"Quicksand",sans-serif;font-weight:700;font-size:1rem;
+    padding:13px 24px;border-radius:999px;border:2.5px solid var(--ink);
+    background:var(--paper);color:var(--ink);cursor:pointer;text-decoration:none;
+    box-shadow:0 4px 0 var(--ink);transition:transform .12s ease, box-shadow .12s ease, background .15s ease;
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 6px 0 var(--ink)}
+  .btn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--ink)}
+  .btn--red{background:var(--red);color:#fff;border-color:var(--ink)}
+  .btn--pink{background:var(--pink);color:var(--ink)}
+  .btn--ghost{background:transparent;color:#fff;border-color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+  .btn--ghost:hover{box-shadow:0 6px 0 rgba(0,0,0,.25)}
+  .btn--sm{padding:10px 16px;font-size:.92rem;box-shadow:0 3px 0 var(--ink)}
+  .btn--sm:hover{box-shadow:0 5px 0 var(--ink)}
+  .btn--sm:active{box-shadow:0 1px 0 var(--ink)}
+
+  :focus-visible{outline:3px solid var(--blue-deep);outline-offset:3px;border-radius:6px}
+
+  /* ---------- Header / nav ---------- */
+  .site-header{position:sticky;top:0;z-index:50;background:rgba(251,241,225,.92);backdrop-filter:blur(8px);border-bottom:2px solid rgba(58,30,24,.1)}
+  .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 22px;max-width:var(--maxw);margin:0 auto}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:700}
+  .brand svg{width:42px;height:42px;flex:none}
+  .brand b{font-family:"Special Elite",monospace;font-size:1.05rem;letter-spacing:.02em;color:var(--ink)}
+  .nav-links{display:flex;align-items:center;gap:6px;list-style:none}
+  .nav-links a{text-decoration:none;font-weight:600;padding:8px 12px;border-radius:10px;color:var(--ink);transition:background .15s}
+  .nav-links a:hover{background:var(--pink-soft)}
+  .nav-toggle{display:none;background:var(--paper);border:2px solid var(--ink);border-radius:10px;width:44px;height:42px;cursor:pointer;align-items:center;justify-content:center}
+  .nav-toggle span,.nav-toggle span::before,.nav-toggle span::after{content:"";display:block;width:20px;height:2.4px;background:var(--ink);border-radius:2px;position:relative;transition:.2s}
+  .nav-toggle span::before{position:absolute;top:-6px}
+  .nav-toggle span::after{position:absolute;top:6px}
+
+  /* ---------- Hero ---------- */
+  .hero{position:relative;background:var(--red);color:#fff;text-align:center;padding:70px 22px 90px;overflow:hidden}
+  .sunburst{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);width:min(135vw,720px);aspect-ratio:1;border-radius:50%;
+    background:repeating-conic-gradient(from 0deg, rgba(255,255,255,.10) 0 9deg, transparent 9deg 18deg), var(--red-deep);
+    -webkit-mask:radial-gradient(closest-side,#000 48%,transparent 76%);mask:radial-gradient(closest-side,#000 48%,transparent 76%);
+    animation:spin 80s linear infinite;z-index:0}
+  @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+  .hero-inner{position:relative;z-index:2;max-width:760px;margin:0 auto}
+  .hero-cat{width:clamp(170px,34vw,250px);margin:0 auto 10px;filter:drop-shadow(0 12px 18px rgba(0,0,0,.22));animation:bob 4.5s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+  .hero h1{font-family:"Special Elite",monospace;font-size:clamp(2.3rem,7vw,3.7rem);letter-spacing:.03em;text-shadow:0 3px 0 var(--red-deep);margin-bottom:6px}
+  .hero .script{color:var(--gold-soft);font-size:clamp(1.3rem,3.6vw,1.9rem);margin-bottom:18px;text-shadow:0 2px 6px rgba(0,0,0,.25)}
+  .hero p.lead{font-size:clamp(1.02rem,2.2vw,1.18rem);font-weight:600;max-width:540px;margin:0 auto 26px;color:#fff}
+  .hero-ctas{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .star{position:absolute;color:var(--pink);z-index:1;opacity:.9;pointer-events:none}
+
+  /* ---------- Sections ---------- */
+  .section{padding:72px 0;position:relative}
+  .section--cream{background:var(--cream)}
+  .section--paper{background:var(--paper)}
+  .section--red{background:var(--red);color:#fff}
+  .section--blue{background:var(--blue-soft)}
+
+  /* Sobre */
+  .about-card{background:var(--paper);border:2.5px solid var(--ink);border-radius:26px;box-shadow:var(--shadow);max-width:760px;margin:0 auto;padding:36px 34px;text-align:center;position:relative}
+  .about-card p{font-size:1.08rem}
+  .features{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:30px}
+  .feature{display:flex;align-items:center;gap:10px;background:var(--cream);border:2px solid rgba(58,30,24,.18);border-radius:999px;padding:9px 18px;font-weight:600}
+  .feature .ic{width:26px;height:26px;flex:none;color:var(--pink-deep)}
+
+  /* Inspiração (Lili) */
+  .lili-grid{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:40px;align-items:center;max-width:880px;margin:0 auto}
+  .polaroid{background:#fff;padding:14px 14px 56px;border-radius:8px;box-shadow:var(--shadow);transform:rotate(-3deg);position:relative}
+  .polaroid .pic{aspect-ratio:1;border-radius:4px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%, #fff 0 60%, var(--pink-soft) 100%);overflow:hidden}
+  .polaroid .pic svg{width:62%}
+  .polaroid .cap{font-family:"Pacifico",cursive;text-align:center;color:var(--pink-deep);font-size:1.25rem;position:absolute;left:0;right:0;bottom:14px}
+  .tape{position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-4deg);width:96px;height:26px;background:rgba(174,204,238,.65);border:1px dashed rgba(63,124,190,.5)}
+  .lili-stats .eyebrow{display:block;margin-bottom:10px}
+  .lili-stats h3{font-family:"Special Elite",monospace;font-size:1.7rem;margin-bottom:16px}
+  .chip{background:var(--pink-soft);border-radius:14px;padding:10px 16px;margin-bottom:10px}
+  .chip b{color:var(--pink-deep)}
+
+  /* Produtos */
+  .pay-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px;margin:0 auto 44px}
+  .pay-card{background:var(--paper);border:2.5px solid var(--ink);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow-sm)}
+  .pay-card .num{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--pink);color:var(--ink);font-weight:700;margin-bottom:10px;border:2px solid var(--ink)}
+  .pay-card.card .num{background:var(--blue)}
+  .pay-card h3{font-size:1.12rem;margin-bottom:4px}
+  .pay-card p{font-size:.96rem;color:var(--ink-soft)}
+
+  .product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:22px}
+  .product-card{background:var(--paper);border:2.5px solid var(--ink);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;transition:transform .14s ease, box-shadow .14s ease}
+  .product-card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+  .product-img{aspect-ratio:1;display:flex;align-items:center;justify-content:center;overflow:hidden;border-bottom:2.5px solid var(--ink)}
+  .product-img img{width:100%;height:100%;object-fit:cover}
+  .product-img .ph{width:60%;opacity:.85}
+  .product-body{padding:16px 18px 20px;display:flex;flex-direction:column;gap:8px;flex:1}
+  .product-body h3{font-size:1.12rem}
+  .product-body .desc{font-size:.9rem;color:var(--ink-soft);flex:1}
+  .price{font-family:"Special Elite",monospace;font-size:1.3rem;color:var(--red-deep)}
+  .product-actions{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .product-actions .btn{flex:1;min-width:108px}
+  .catalog-cta{text-align:center;margin-top:46px}
+
+  /* Equipe */
+  .team-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px;max-width:920px;margin:0 auto}
+  .member{border-radius:22px;padding:26px;border:2.5px solid var(--ink);box-shadow:var(--shadow-sm)}
+  .member.anna{background:var(--blue-soft)}
+  .member.samara{background:var(--gold-soft)}
+  .member-top{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+  .member-photo{width:84px;height:84px;flex:none;border-radius:50%;border:3px solid #fff;box-shadow:0 4px 10px rgba(58,30,24,.18);overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff}
+  .member.anna .member-photo{background:var(--blue)}
+  .member.samara .member-photo{background:var(--gold)}
+  .member-photo img{width:100%;height:100%;object-fit:cover}
+  .member-photo svg{width:64%}
+  .member-top h3{font-family:"Special Elite",monospace;font-size:1.45rem}
+  .member-top .role{font-size:.9rem;color:var(--ink-soft);font-weight:600}
+  .member ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+  .member li{font-size:.96rem}
+  .member li b{display:block;font-family:"Special Elite",monospace;font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft);margin-bottom:1px}
+
+  /* Contato */
+  .contact{text-align:center}
+  .contact p.lead{max-width:520px;margin:0 auto 26px;font-weight:600;font-size:1.08rem;color:#fff}
+  .contact-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+
+  /* Footer */
+  footer{background:var(--ink);color:var(--cream);text-align:center;padding:34px 22px}
+  footer .fbrand{font-family:"Special Elite",monospace;font-size:1.05rem;margin-bottom:6px}
+  footer a{color:var(--gold-soft);text-decoration:none;font-weight:600}
+  footer .small{font-size:.85rem;opacity:.75;margin-top:8px}
+
+  /* Toast */
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);background:var(--ink);color:var(--cream);padding:13px 22px;border-radius:999px;font-weight:600;z-index:200;box-shadow:var(--shadow);transition:transform .3s ease;max-width:90vw;text-align:center}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+
+  /* Reveal on scroll */
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease, transform .6s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:860px){
+    .lili-grid{grid-template-columns:1fr;gap:30px;max-width:420px}
+    .polaroid{transform:rotate(-2deg);max-width:300px;margin:0 auto}
+    .team-grid{grid-template-columns:1fr;max-width:460px}
+  }
+  @media (max-width:680px){
+    .nav-toggle{display:flex}
+    .nav-links{position:absolute;top:100%;right:0;left:0;flex-direction:column;align-items:stretch;gap:0;background:var(--paper);border-bottom:2px solid rgba(58,30,24,.12);box-shadow:var(--shadow);padding:8px;display:none}
+    .nav-links.open{display:flex}
+    .nav-links a{padding:12px 14px;border-radius:10px}
+    .nav-links li:last-child a{text-align:center;background:var(--red);color:#fff;margin-top:4px}
+    .pay-row{grid-template-columns:1fr;max-width:420px}
+    .section{padding:56px 0}
+    .about-card{padding:28px 22px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+    .reveal{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Mascote (definido uma vez, reutilizado em vários tamanhos) ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="sillycat" viewBox="0 0 240 250">
+    <!-- gola de palhaço (babado) -->
+    <g stroke="#3A1E18" stroke-width="2">
+      <circle cx="56" cy="184" r="17" fill="#F4A7C6"/>
+      <circle cx="184" cy="184" r="17" fill="#F4A7C6"/>
+      <circle cx="72" cy="189" r="17" fill="#F9C2DA"/>
+      <circle cx="168" cy="189" r="17" fill="#F9C2DA"/>
+      <circle cx="88" cy="192" r="17" fill="#F4A7C6"/>
+      <circle cx="152" cy="192" r="17" fill="#F4A7C6"/>
+      <circle cx="104" cy="194" r="17" fill="#F9C2DA"/>
+      <circle cx="136" cy="194" r="17" fill="#F9C2DA"/>
+      <circle cx="120" cy="195" r="17" fill="#F4A7C6"/>
+    </g>
+    <!-- orelhas -->
+    <path d="M70 72 L96 38 L112 76 Z" fill="#fff" stroke="#3A1E18" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M170 72 L144 38 L128 76 Z" fill="#fff" stroke="#3A1E18" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M82 70 L96 50 L104 72 Z" fill="#F6A9C6"/>
+    <path d="M158 70 L144 50 L136 72 Z" fill="#F6A9C6"/>
+    <!-- cabeça -->
+    <ellipse cx="120" cy="116" rx="70" ry="62" fill="#fff" stroke="#3A1E18" stroke-width="3"/>
+    <!-- bigodes -->
+    <g stroke="#3A1E18" stroke-width="1.6" stroke-linecap="round" opacity=".75">
+      <path d="M64 126 L38 120"/><path d="M64 134 L38 136"/>
+      <path d="M176 126 L202 120"/><path d="M176 134 L202 136"/>
+    </g>
+    <!-- olho aberto -->
+    <ellipse cx="96" cy="110" rx="8.5" ry="11.5" fill="#3A1E18"/>
+    <circle cx="99" cy="105" r="3.4" fill="#fff"/>
+    <!-- olho piscando -->
+    <path d="M132 108 q12 11 24 0" fill="none" stroke="#3A1E18" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M157 105 l5 -3 M156 110 l6 0" stroke="#3A1E18" stroke-width="2" stroke-linecap="round"/>
+    <!-- losangos nas bochechas -->
+    <path d="M88 116 L94 124 L88 132 L82 124 Z" fill="#EC5F86"/>
+    <path d="M152 116 L158 124 L152 132 L146 124 Z" fill="#4E84BE"/>
+    <!-- blush -->
+    <ellipse cx="78" cy="146" rx="12" ry="7" fill="#F6A9C6" opacity=".75"/>
+    <ellipse cx="162" cy="146" rx="12" ry="7" fill="#F6A9C6" opacity=".75"/>
+    <!-- nariz -->
+    <path d="M114 132 L126 132 L120 140 Z" fill="#EC5F86"/>
+    <!-- boca -->
+    <path d="M120 140 L120 146 M120 146 q-7 7 -14 2 M120 146 q7 7 14 2" fill="none" stroke="#3A1E18" stroke-width="2.4" stroke-linecap="round"/>
+    <!-- língua -->
+    <path d="M113 149 h14 a5 5 0 0 1 5 5 v2 a8 8 0 0 1 -24 0 v-2 a5 5 0 0 1 5 -5 Z" fill="#F06A90"/>
+    <path d="M120 151 L120 160" stroke="#CF477A" stroke-width="1.8" stroke-linecap="round"/>
+  </symbol>
+
+  <symbol id="star" viewBox="0 0 24 24">
+    <path d="M12 2l2.6 6.3L21 9l-5 4.3L17.5 21 12 17.2 6.5 21 8 13.3 3 9l6.4-.7z" fill="currentColor"/>
+  </symbol>
+  <symbol id="heart" viewBox="0 0 24 24">
+    <path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<!-- ===== Header ===== -->
+<header class="site-header">
+  <div class="nav-inner">
+    <a class="brand" href="#topo" aria-label="Silly Cat Crochê — início">
+      <svg viewBox="0 0 240 250"><use href="#sillycat"/></svg>
+      <b>Silly&nbsp;Cat&nbsp;Crochê</b>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="navLinks"><span></span></button>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#sobre">Sobre</a></li>
+      <li><a href="#inspiracao">A Lili</a></li>
+      <li><a href="#produtos">Produtos</a></li>
+      <li><a href="#equipe">Equipe</a></li>
+      <li><a href="#contato">Comprar</a></li>
+    </ul>
+  </div>
+</header>
+
+<main id="topo">
+
+  <!-- ===== Hero ===== -->
+  <section class="hero">
+    <div class="sunburst" aria-hidden="true"></div>
+    <svg class="star" style="top:14%;left:9%;width:34px" aria-hidden="true"><use href="#star"/></svg>
+    <svg class="star" style="top:24%;right:11%;width:26px" aria-hidden="true"><use href="#star"/></svg>
+    <svg class="star" style="bottom:18%;left:14%;width:22px" aria-hidden="true"><use href="#star"/></svg>
+    <svg class="star" style="bottom:26%;right:8%;width:34px" aria-hidden="true"><use href="#star"/></svg>
+    <div class="hero-inner">
+      <svg class="hero-cat" viewBox="0 0 240 250" role="img" aria-label="Silly Cat, a gatinha mascote da marca, piscando o olho"><use href="#sillycat"/></svg>
+      <h1>Silly Cat Crochê</h1>
+      <p class="script">Crochê para pessoas descoladas ✨</p>
+      <p class="lead">Amigurumis e decorações feitos à mão, ponto por ponto, com muita personalidade — direto de São Carlos&nbsp;–&nbsp;SP para todo o Brasil.</p>
+      <div class="hero-ctas">
+        <a class="btn btn--ghost" href="#produtos">Ver produtos</a>
+        <a class="btn" href="https://app.moirabr.com.br/perfil/silly-cat/" target="_blank" rel="noopener">Catálogo completo ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Sobre ===== -->
+  <section class="section section--cream" id="sobre">
+    <div class="wrap reveal">
+      <div class="section-head">
+        <span class="eyebrow">Quem somos nós?</span>
+        <h2 class="tiles">A GATA MAIS SILLY</h2>
+      </div>
+      <div class="about-card">
+        <p>A <b>Silly Cat</b> nasceu do encanto por transformar fios em bichinhos cheios de vida. Cada peça é feita à mão, com calma e carinho, pensando em quem ama coisas fofas, originais e com aquele toque <em>silly</em>. Trabalhamos com <b>amigurumis, chaveiros, decorações e peças personalizadas</b> — e adoramos um pedido especial.</p>
+        <div class="features">
+          <div class="feature"><svg class="ic" aria-hidden="true"><use href="#heart"/></svg>Feito à mão</div>
+          <div class="feature"><svg class="ic" aria-hidden="true"><use href="#star"/></svg>Peças únicas</div>
+          <div class="feature"><svg class="ic" aria-hidden="true"><use href="#heart"/></svg>Envio para todo o Brasil</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Inspiração: Lili ===== -->
+  <section class="section section--red" id="inspiracao">
+    <svg class="star" style="top:12%;left:6%;width:24px;color:var(--pink-soft)" aria-hidden="true"><use href="#star"/></svg>
+    <svg class="star" style="bottom:14%;right:7%;width:28px;color:var(--pink-soft)" aria-hidden="true"><use href="#star"/></svg>
+    <div class="wrap reveal">
+      <div class="section-head">
+        <span class="eyebrow" style="color:var(--gold-soft)">A inspiração</span>
+        <h2 class="tiles">CONHEÇA A LILI</h2>
+      </div>
+      <div class="lili-grid">
+        <div class="polaroid">
+          <span class="tape" aria-hidden="true"></span>
+          <!-- ★ Troque o bloco abaixo por uma foto real:  <img src="img/lili.jpg" alt="Lili, a gata Silly"> -->
+          <div class="pic"><svg viewBox="0 0 240 250" aria-hidden="true"><use href="#sillycat"/></svg></div>
+          <span class="cap">a gata mais silly 💖</span>
+        </div>
+        <div class="lili-stats">
+          <span class="eyebrow" style="color:var(--gold-soft)">Ficha técnica</span>
+          <h3>Lili 🐾</h3>
+          <div class="chip"><b>Apelidos:</b> Lilica, Lilizinha, Lilão</div>
+          <div class="chip"><b>Idade:</b> 6 anos &nbsp;·&nbsp; <b>Comida favorita:</b> alga</div>
+          <div class="chip"><b>Hobbies:</b> tirar cochilo à tarde, esconder os brinquedos dentro do sofá e correr pela casa</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Produtos ===== -->
+  <section class="section section--paper" id="produtos">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">Nossa lojinha</span>
+        <h2 class="tiles">NOSSAS PEÇAS</h2>
+      </div>
+
+      <div class="pay-row reveal">
+        <div class="pay-card pix">
+          <span class="num">1</span>
+          <h3>Pagar com PIX</h3>
+          <p>No botão <b>PIX</b>, você abre um formulário rápido com a peça escolhida e seus dados. A gente confirma o pedido e te envia a chave PIX. 🧶</p>
+        </div>
+        <div class="pay-card card">
+          <span class="num">2</span>
+          <h3>Pagar com cartão</h3>
+          <p>No botão <b>Cartão</b>, você finaliza com segurança pelo nosso anúncio na OLX, com a opção de parcelar.</p>
+        </div>
+      </div>
+
+      <div class="product-grid reveal" id="productGrid"><!-- preenchido via JavaScript --></div>
+
+      <div class="catalog-cta reveal">
+        <a class="btn btn--red" href="https://app.moirabr.com.br/perfil/silly-cat/" target="_blank" rel="noopener">Ver catálogo completo na Moira ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Equipe ===== -->
+  <section class="section section--blue" id="equipe">
+    <div class="wrap reveal">
+      <div class="section-head">
+        <span class="eyebrow">Quem faz a mágica</span>
+        <h2 class="tiles">A DUPLA SILLY</h2>
+      </div>
+      <div class="team-grid">
+        <article class="member anna">
+          <div class="member-top">
+            <div class="member-photo">
+              <!-- ★ Troque por:  <img src="img/anna.jpg" alt="Anna"> -->
+              <svg viewBox="0 0 240 250" aria-hidden="true"><use href="#sillycat"/></svg>
+            </div>
+            <div>
+              <h3>Anna</h3>
+              <span class="role">crocheteira & viajante 💙</span>
+            </div>
+          </div>
+          <ul>
+            <li><b>Estilo de crochê</b>Amigurumis, decorações e roupas</li>
+            <li><b>Linha favorita</b>Chenille</li>
+            <li><b>Hobbies</b>Viajar, testar receitinhas, fazer colagens e girar muito no pole</li>
+            <li><b>Trilha sonora</b>Pop e k-pop</li>
+          </ul>
+        </article>
+        <article class="member samara">
+          <div class="member-top">
+            <div class="member-photo">
+              <!-- ★ Troque por:  <img src="img/samara.jpg" alt="Samara"> -->
+              <svg viewBox="0 0 240 250" aria-hidden="true"><use href="#sillycat"/></svg>
+            </div>
+            <div>
+              <h3>Samara</h3>
+              <span class="role">amigurumi & tapestry 💛</span>
+            </div>
+          </div>
+          <ul>
+            <li><b>Estilo de crochê</b>Amigurumis, tapestry e filet crochet</li>
+            <li><b>Linha favorita</b>Chenille</li>
+            <li><b>Hobbies</b>Colagens, decoração, pintura e pole</li>
+            <li><b>Trilha sonora</b>Pop e k-pop</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Contato ===== -->
+  <section class="section section--red contact" id="contato">
+    <div class="wrap reveal">
+      <div class="section-head">
+        <span class="eyebrow" style="color:var(--gold-soft)">Vamos conversar</span>
+        <h2 class="tiles">FALE COM A GENTE</h2>
+      </div>
+      <p class="lead">Quer uma peça personalizada ou ficou com alguma dúvida? Chama a gente no direct do Instagram ou explore o catálogo completo.</p>
+      <div class="contact-actions">
+        <a class="btn" href="https://www.instagram.com/sillycat_croche/" target="_blank" rel="noopener">@sillycat_croche</a>
+        <a class="btn btn--pink" href="https://app.moirabr.com.br/perfil/silly-cat/" target="_blank" rel="noopener">Catálogo na Moira ↗</a>
+      </div>
+      <p style="margin-top:22px;font-weight:600;color:var(--gold-soft)">📍 São Carlos – SP · Envios para todo o Brasil</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p class="fbrand">Silly Cat Crochê</p>
+  <p>feito à mão com 🧶 em São Carlos – SP</p>
+  <p class="small">© <span id="year"></span> Silly Cat Crochê · <a href="https://www.instagram.com/sillycat_croche/" target="_blank" rel="noopener">Instagram</a></p>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ============================================================
+   ★★★ EDITE AQUI 1 — SEUS LINKS ★★★
+   - pixForm: link do seu Google Forms (vendas via PIX)
+   ============================================================ */
+const LINKS = {
+  pixForm: "COLE_AQUI_O_LINK_DO_GOOGLE_FORMS"
+};
+
+/* ============================================================
+   ★★★ EDITE AQUI 2 — SEUS PRODUTOS ★★★
+   Para cada peça:
+   - nome, preco, desc
+   - img : caminho da foto, ex. "img/gatinho.jpg" (deixe "" para usar a gatinha)
+   - olx : link do anúncio na OLX (pagamento com cartão)
+   Os exemplos abaixo são só pra mostrar o layout — troque pelos seus.
+   ============================================================ */
+const PRODUTOS = [
+  { nome:"Gatinho Silly", preco:"R$ 89,90", desc:"Amigurumi da nossa mascote, feito à mão. ~15 cm.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
+  { nome:"Snorlax Amigurumi", preco:"R$ 159,90", desc:"O dorminhoco mais fofo pra sua estante.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
+  { nome:"Ursinhos Casal", preco:"R$ 129,90", desc:"Dupla de ursinhos em fio chenille, super macios.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
+  { nome:"Hello Kitty", preco:"R$ 110,00", desc:"Pelúcia em crochê cheia de charme.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
+  { nome:"Chaveiro Coração", preco:"R$ 24,90", desc:"O presentinho perfeito. Escolha a cor!", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
+  { nome:"Móbile Passarinhos", preco:"R$ 149,90", desc:"Decoração delicada para o quarto do bebê.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" }
+];
+
+/* ---------- daqui pra baixo não precisa mexer ---------- */
+const PLACEHOLDER = /COLE_AQUI/;
+
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),3200);
+}
+
+function openLink(url, oQue){
+  if(!url || PLACEHOLDER.test(url)){
+    showToast("Esse link ainda está sendo preparado 🧶");
+    return;
+  }
+  window.open(url,"_blank","noopener");
+}
+
+function renderProdutos(){
+  const grid=document.getElementById("productGrid");
+  grid.innerHTML = PRODUTOS.map((p,i)=>{
+    const img = (p.img && !PLACEHOLDER.test(p.img))
+      ? `<img src="${p.img}" alt="${p.nome}" loading="lazy">`
+      : `<svg class="ph" viewBox="0 0 240 250" aria-hidden="true"><use href="#sillycat"/></svg>`;
+    const tints=["#FBD0E0","#DCEAF8","#FBE7A6","#FBD0E0","#DCEAF8","#FBE7A6"];
+    return `<article class="product-card">
+      <div class="product-img" style="background:${tints[i%tints.length]}">${img}</div>
+      <div class="product-body">
+        <h3>${p.nome}</h3>
+        <p class="desc">${p.desc}</p>
+        <p class="price">${p.preco}</p>
+        <div class="product-actions">
+          <button class="btn btn--pink btn--sm" data-pix>PIX</button>
+          <button class="btn btn--sm" data-olx="${p.olx}">Cartão</button>
+        </div>
+      </div>
+    </article>`;
+  }).join("");
+
+  grid.querySelectorAll("[data-pix]").forEach(b=>b.addEventListener("click",()=>openLink(LINKS.pixForm)));
+  grid.querySelectorAll("[data-olx]").forEach(b=>b.addEventListener("click",()=>openLink(b.dataset.olx)));
+}
+
+/* Títulos em "azulejos" de máquina de escrever */
+function buildTiles(){
+  document.querySelectorAll(".tiles").forEach(el=>{
+    const text=el.textContent;el.textContent="";
+    [...text].forEach(ch=>{
+      if(ch===" "){const s=document.createElement("span");s.className="tile-space";el.appendChild(s);return;}
+      const t=document.createElement("span");t.className="tile";t.textContent=ch;
+      t.style.transform=`rotate(${(Math.random()*7-3.5).toFixed(1)}deg)`;
+      el.appendChild(t);
+    });
+  });
+}
+
+/* Menu mobile */
+function initNav(){
+  const btn=document.getElementById("navToggle"), links=document.getElementById("navLinks");
+  btn.addEventListener("click",()=>{
+    const open=links.classList.toggle("open");
+    btn.setAttribute("aria-expanded",open);
+    btn.setAttribute("aria-label",open?"Fechar menu":"Abrir menu");
+  });
+  links.querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>{
+    links.classList.remove("open");btn.setAttribute("aria-expanded","false");
+  }));
+}
+
+/* Aparecer ao rolar */
+function initReveal(){
+  const io=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});
+  },{threshold:.12});
+  document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("year").textContent=new Date().getFullYear();
+  buildTiles();
+  renderProdutos();
+  initNav();
+  initReveal();
+});
+</script>
+</body>
+</html>
