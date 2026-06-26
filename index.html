@@ -62,7 +62,7 @@
 
   /* ---------- Typography ---------- */
   h1,h2,h3{line-height:1.1;font-weight:700}
-  .script{font-family:"Pacifico",cursive;font-weight:400;line-height:1.3}
+  .script{font-family:"Montserrat",cursive;font-weight:400;line-height:1.3}
   .eyebrow{
     font-family:"Special Elite",monospace;
     text-transform:uppercase;
@@ -85,8 +85,73 @@
     box-shadow:0 3px 0 rgba(58,30,24,.16);
     font-size:clamp(1.5rem,5vw,2.5rem);
     line-height:1;
+    transform:rotate(var(--r,0deg));
+    transition:transform .14s ease, box-shadow .14s ease;
   }
   .tile-space{width:.45em}
+  .tile-break{flex-basis:100%;height:0}
+
+  /* Letreiro especial: "A GATA MAIS SILLY" */
+  .silly-sign{
+    position:relative;
+    width:fit-content;
+    max-width:min(100%,720px);
+    margin:6px auto 0;
+    padding:24px 30px 22px;
+    gap:9px;
+    background:
+      radial-gradient(circle at 18px 18px, rgba(246,169,198,.55) 0 6px, transparent 7px),
+      radial-gradient(circle at calc(100% - 20px) calc(100% - 18px), rgba(174,204,238,.65) 0 7px, transparent 8px),
+      linear-gradient(135deg, #FFF8EC 0%, #FBE7A6 48%, #FBD0E0 100%);
+    border:3px solid var(--ink);
+    border-radius:28px;
+    box-shadow:0 8px 0 var(--ink), 0 22px 34px rgba(58,30,24,.18);
+    transform:rotate(-1deg);
+    isolation:isolate;
+  }
+  .silly-sign::before{
+    content:"";
+    position:absolute;
+    inset:9px;
+    border:2px dashed rgba(58,30,24,.28);
+    border-radius:20px;
+    pointer-events:none;
+    z-index:-1;
+  }
+  .silly-sign::after{
+    content:"🐾";
+    position:absolute;
+    right:-18px;
+    top:-22px;
+    width:54px;
+    height:54px;
+    display:grid;
+    place-items:center;
+    background:var(--pink);
+    border:2.5px solid var(--ink);
+    border-radius:50%;
+    box-shadow:0 4px 0 var(--ink);
+    font-size:1.45rem;
+    transform:rotate(12deg);
+  }
+  .silly-sign .tile{
+    min-width:1.42em;
+    height:1.55em;
+    padding:.05em .16em 0;
+    border-width:2px;
+    border-radius:11px;
+    box-shadow:0 4px 0 rgba(58,30,24,.22);
+    text-shadow:0 1px 0 rgba(255,255,255,.55);
+  }
+  .silly-sign .tile:nth-child(4n+1){background:var(--pink-soft)}
+  .silly-sign .tile:nth-child(4n+2){background:var(--blue-soft)}
+  .silly-sign .tile:nth-child(4n+3){background:var(--gold-soft)}
+  .silly-sign .tile:nth-child(4n){background:#fff}
+  .silly-sign .tile-space{width:.65em}
+  .silly-sign:hover .tile{
+    transform:translateY(-2px) rotate(var(--r,0deg));
+    box-shadow:0 6px 0 rgba(58,30,24,.22);
+  }
 
   /* ---------- Buttons ---------- */
   .btn{
@@ -229,6 +294,24 @@
     .team-grid{grid-template-columns:1fr;max-width:460px}
   }
   @media (max-width:680px){
+    .silly-sign{
+      padding:18px 18px 17px;
+      gap:6px;
+      border-radius:22px;
+      box-shadow:0 6px 0 var(--ink), 0 16px 24px rgba(58,30,24,.16);
+    }
+    .silly-sign::after{
+      width:42px;
+      height:42px;
+      right:-8px;
+      top:-18px;
+      font-size:1.1rem;
+    }
+    .silly-sign .tile{
+      min-width:1.32em;
+      height:1.48em;
+      font-size:clamp(1.28rem,8vw,2rem);
+    }
     .nav-toggle{display:flex}
     .nav-links{position:absolute;top:100%;right:0;left:0;flex-direction:column;align-items:stretch;gap:0;background:var(--paper);border-bottom:2px solid rgba(58,30,24,.12);box-shadow:var(--shadow);padding:8px;display:none}
     .nav-links.open{display:flex}
@@ -347,7 +430,7 @@
     <div class="wrap reveal">
       <div class="section-head">
         <span class="eyebrow">Quem somos nós?</span>
-        <h2 class="tiles">A GATA MAIS SILLY</h2>
+        <h2 class="tiles silly-sign" data-tile-layout="two-line">A GATA MAIS SILLY</h2>
       </div>
       <div class="about-card">
         <p>A <b>Silly Cat</b> nasceu do encanto por transformar fios em bichinhos cheios de vida. Cada peça é feita à mão, com calma e carinho, pensando em quem ama coisas fofas, originais e com aquele toque <em>silly</em>. Trabalhamos com <b>amigurumis, chaveiros, decorações e peças personalizadas</b> — e adoramos um pedido especial.</p>
@@ -395,7 +478,7 @@
         <h2 class="tiles">NOSSAS PEÇAS</h2>
       </div>
 
-      <div class="pay-row reveal">
+      <!-- <div class="pay-row reveal">
         <div class="pay-card pix">
           <span class="num">1</span>
           <h3>Pagar com PIX</h3>
@@ -406,7 +489,7 @@
           <h3>Pagar com cartão</h3>
           <p>No botão <b>Cartão</b>, você finaliza com segurança pelo nosso anúncio na OLX, com a opção de parcelar.</p>
         </div>
-      </div>
+      </div> -->
 
       <div class="product-grid reveal" id="productGrid"><!-- preenchido via JavaScript --></div>
 
@@ -508,7 +591,7 @@ const LINKS = {
    Os exemplos abaixo são só pra mostrar o layout — troque pelos seus.
    ============================================================ */
 const PRODUTOS = [
-  { nome:"Gatinho Silly", preco:"R$ 89,90", desc:"Amigurumi da nossa mascote, feito à mão. ~15 cm.", img:"img/your-name-shooting-7680x4320-14938.jpg", olx:"COLE_AQUI_O_LINK_DA_OLX" },
+  { nome:"Gatinho Silly Milkshake", preco:"R$ 45,00", desc:"Amigurumi da nossa mascote, feito à mão. ~15 cm.", img:"img/gatorosa.jpeg", olx:"https://sp.olx.com.br/regiao-de-ribeirao-preto/para-a-sua-casa/decoracoes-para-casa/gatinho-chaveiro-rosa-1513574592?utm_medium=shared_link&utm_source=whatsapp" },
   { nome:"Snorlax Amigurumi", preco:"R$ 159,90", desc:"O dorminhoco mais fofo pra sua estante.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
   { nome:"Ursinhos Casal", preco:"R$ 129,90", desc:"Dupla de ursinhos em fio chenille, super macios.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
   { nome:"Hello Kitty", preco:"R$ 110,00", desc:"Pelúcia em crochê cheia de charme.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
@@ -561,10 +644,19 @@ function renderProdutos(){
 function buildTiles(){
   document.querySelectorAll(".tiles").forEach(el=>{
     const text=el.textContent;el.textContent="";
+    const twoLine = el.dataset.tileLayout === "two-line";
+    let spaces = 0;
     [...text].forEach(ch=>{
-      if(ch===" "){const s=document.createElement("span");s.className="tile-space";el.appendChild(s);return;}
+      if(ch===" "){
+        spaces += 1;
+        const s=document.createElement("span");
+        s.className = (twoLine && spaces === 2) ? "tile-break" : "tile-space";
+        el.appendChild(s);
+        return;
+      }
       const t=document.createElement("span");t.className="tile";t.textContent=ch;
-      t.style.transform=`rotate(${(Math.random()*7-3.5).toFixed(1)}deg)`;
+      const rotation = (Math.random()*7-3.5).toFixed(1);
+      t.style.setProperty("--r", `${rotation}deg`);
       el.appendChild(t);
     });
   });
