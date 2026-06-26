@@ -508,7 +508,7 @@ const LINKS = {
    Os exemplos abaixo são só pra mostrar o layout — troque pelos seus.
    ============================================================ */
 const PRODUTOS = [
-  { nome:"Gatinho Silly", preco:"R$ 89,90", desc:"Amigurumi da nossa mascote, feito à mão. ~15 cm.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
+  { nome:"Gatinho Silly", preco:"R$ 89,90", desc:"Amigurumi da nossa mascote, feito à mão. ~15 cm.", img:"img/your-name-shooting-7680x4320-14938.jpg", olx:"COLE_AQUI_O_LINK_DA_OLX" },
   { nome:"Snorlax Amigurumi", preco:"R$ 159,90", desc:"O dorminhoco mais fofo pra sua estante.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
   { nome:"Ursinhos Casal", preco:"R$ 129,90", desc:"Dupla de ursinhos em fio chenille, super macios.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
   { nome:"Hello Kitty", preco:"R$ 110,00", desc:"Pelúcia em crochê cheia de charme.", img:"", olx:"COLE_AQUI_O_LINK_DA_OLX" },
@@ -547,8 +547,7 @@ function renderProdutos(){
         <p class="desc">${p.desc}</p>
         <p class="price">${p.preco}</p>
         <div class="product-actions">
-          <button class="btn btn--pink btn--sm" data-pix>PIX</button>
-          <button class="btn btn--sm" data-olx="${p.olx}">Cartão</button>
+          <button class="btn btn--pink btn--sm" data-olx="${p.olx}">Comprar</button>
         </div>
       </div>
     </article>`;
