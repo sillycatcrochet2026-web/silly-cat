@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Silly Cat Crochê — Nova coleção</title>
-<meta name="description" content="Página inicial da Silly Cat Crochê com banner e lançamentos da marca.">
+<title>Sobre nós — Silly Cat Crochê</title>
+<meta name="description" content="Conheça a história, a inspiração e a equipe da Silly Cat Crochê.">
 <meta name="theme-color" content="#B80C00">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-</head><body data-page="home">
+</head><body data-page="sobre">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="sillycat" viewBox="0 0 240 250">
@@ -73,27 +73,56 @@
 </header>
 
 <main>
-  <section class="hero-home brand-banner" aria-label="Banner Silly Cat">
-    <span class="banner-sparkle sparkle-1" aria-hidden="true">✦</span>
-    <span class="banner-sparkle sparkle-2" aria-hidden="true">✧</span>
-    <span class="banner-sparkle sparkle-3" aria-hidden="true">✦</span>
-    <div class="brand-banner-inner reveal">
-      <img class="brand-banner-logo" src="img/logo-sillycat.jpg" alt="Logo da marca Silly Cat">
-      <h1 class="brand-banner-title">Silly Cat</h1>
-      <p class="brand-banner-slogan">Crochê para pessoas descoladas</p>
+  <section class="page-hero">
+    <span class="flower" style="left:8%;top:32%"></span>
+    <span class="cloud" style="right:8%;bottom:18%"></span>
+    <div class="wrap reveal">
+      <span class="kicker">Sobre nós</span>
+      <h1 class="page-title">A gata<br>mais silly</h1>
+      <p>Uma marca artesanal para quem ama peças fofas, originais e cheias de personalidade.</p>
     </div>
-    
   </section>
-
-  <section class="launches">
-    <span class="cloud" style="right:-16px;top:48px"></span>
-    <div class="wrap">
-      <div class="section-head-row reveal">
-        <h2 class="section-title">Lançamentos</h2>
-        <a class="soft-btn light" href="produtos.html">Ver todos os produtos</a>
+  <section class="page-content">
+    <div class="wrap about-layout">
+      <div class="text-card reveal">
+        <h2>Quem somos</h2>
+        <p>A <b>Silly Cat Crochê</b> nasceu do encanto por transformar fios em bichinhos cheios de vida. Cada peça é feita à mão, ponto por ponto, com calma, carinho e aquele toque divertido que deixa tudo mais especial.</p>
+        <p>Trabalhamos com <b>amigurumis, chaveiros, decorações e peças personalizadas</b>. Gostamos de criar produtos que pareçam presentes: delicados, coloridos e com cara de achado único.</p>
+        <div class="mini-grid">
+          <div class="mini-card"><b>Feito</b>à mão</div>
+          <div class="mini-card"><b>Peças</b>únicas</div>
+          <div class="mini-card"><b>Envio</b>Brasil</div>
+        </div>
       </div>
-      <div class="launch-grid" data-products="launches"></div>
-      <p class="home-only-note">A página inicial agora fica limpa: só banner + lançamentos da marca.</p>
+      <aside class="profile-card reveal">
+        <div class="profile-photo"><svg viewBox="0 0 240 250" aria-hidden="true"><use href="#sillycat"></use></svg></div>
+        <p class="caption">Lili, a inspiração 💖</p>
+        <div class="text-card" style="margin-top:18px;padding:20px;box-shadow:none">
+          <h3>Ficha técnica</h3>
+          <p><b>Apelidos:</b> Lilica, Lilizinha, Lilão.</p>
+          <p><b>Hobbies:</b> cochilar à tarde, esconder brinquedos no sofá e correr pela casa.</p>
+        </div>
+      </aside>
+    </div>
+    <div class="wrap team-strip">
+      <article class="team-card reveal">
+        <h3>Anna</h3>
+        <p>crocheteira & viajante 💙</p>
+        <ul>
+          <li>Amigurumis, decorações e roupas</li>
+          <li>Linha favorita: chenille</li>
+          <li>Trilha sonora: pop e k-pop</li>
+        </ul>
+      </article>
+      <article class="team-card reveal">
+        <h3>Samara</h3>
+        <p>amigurumi & tapestry 💛</p>
+        <ul>
+          <li>Amigurumis, tapestry e filet crochet</li>
+          <li>Linha favorita: chenille</li>
+          <li>Hobbies: colagens, decoração, pintura e pole</li>
+        </ul>
+      </article>
     </div>
   </section>
 </main>

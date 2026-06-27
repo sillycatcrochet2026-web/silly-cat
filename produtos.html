@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Silly Cat Crochê — Nova coleção</title>
-<meta name="description" content="Página inicial da Silly Cat Crochê com banner e lançamentos da marca.">
+<title>Produtos — Silly Cat Crochê</title>
+<meta name="description" content="Produtos, amigurumis, chaveiros e decorações da Silly Cat Crochê.">
 <meta name="theme-color" content="#B80C00">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-</head><body data-page="home">
+</head><body data-page="produtos">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="sillycat" viewBox="0 0 240 250">
@@ -72,28 +72,24 @@
   </div>
 </header>
 
-<main>
-  <section class="hero-home brand-banner" aria-label="Banner Silly Cat">
-    <span class="banner-sparkle sparkle-1" aria-hidden="true">✦</span>
-    <span class="banner-sparkle sparkle-2" aria-hidden="true">✧</span>
-    <span class="banner-sparkle sparkle-3" aria-hidden="true">✦</span>
-    <div class="brand-banner-inner reveal">
-      <img class="brand-banner-logo" src="img/logo-sillycat.jpg" alt="Logo da marca Silly Cat">
-      <h1 class="brand-banner-title">Silly Cat</h1>
-      <p class="brand-banner-slogan">Crochê para pessoas descoladas</p>
+<main class="products-page">
+  <section class="page-hero">
+    <span class="flower" style="left:10%;bottom:18%"></span>
+    <span class="cloud" style="right:6%;top:26%"></span>
+    <div class="wrap reveal">
+      <span class="kicker">Nossa lojinha</span>
+      <h1 class="page-title">Produtos</h1>
+      <p>Escolha sua peça favorita. Para itens personalizados, chama a gente no Instagram.</p>
     </div>
-    
   </section>
-
-  <section class="launches">
-    <span class="cloud" style="right:-16px;top:48px"></span>
+  <section class="page-content">
     <div class="wrap">
-      <div class="section-head-row reveal">
-        <h2 class="section-title">Lançamentos</h2>
-        <a class="soft-btn light" href="produtos.html">Ver todos os produtos</a>
+      <div class="product-grid" data-products="all"></div>
+      <div class="catalog-callout reveal">
+        <h2>Quer ver o catálogo completo?</h2>
+        <p>Confira mais peças, disponibilidade e novidades no nosso perfil da Moira.</p>
+        <p style="margin-top:16px"><a class="soft-btn" href="https://app.moirabr.com.br/perfil/silly-cat/" target="_blank" rel="noopener">Abrir catálogo ↗</a></p>
       </div>
-      <div class="launch-grid" data-products="launches"></div>
-      <p class="home-only-note">A página inicial agora fica limpa: só banner + lançamentos da marca.</p>
     </div>
   </section>
 </main>
