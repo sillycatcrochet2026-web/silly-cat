@@ -275,3 +275,114 @@ footer{background:var(--peach);color:var(--paper);text-align:center;padding:34px
   .banner-sparkle.sparkle-2{right:8%;top:16%}
   .banner-sparkle.sparkle-3{display:none}
 }
+
+
+/* ============================================================
+   Opções de compra dentro do card do produto
+   ============================================================ */
+.free-shipping{
+  display:inline-flex;
+  align-items:center;
+  margin-left:6px;
+  color:#168a38;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.035em;
+  white-space:nowrap;
+}
+.free-shipping::before{
+  content:"•";
+  margin-right:6px;
+  color:#168a38;
+}
+
+.buy-toggle::after{
+  content:"⌄";
+  display:inline-block;
+  margin-left:4px;
+  transform:translateY(-1px);
+  transition:transform .18s ease;
+}
+.product-card.buy-open .buy-toggle::after{
+  transform:translateY(1px) rotate(180deg);
+}
+
+.shipping-options{
+  display:grid;
+  gap:10px;
+  margin-top:14px;
+  padding:14px;
+  border-radius:20px;
+  background:rgba(121,150,203,.14);
+  border:2px dashed rgba(121,150,203,.75);
+  max-height:0;
+  opacity:0;
+  overflow:hidden;
+  transform:translateY(-4px);
+  pointer-events:none;
+  transition:max-height .28s ease, opacity .18s ease, transform .18s ease, padding .18s ease, margin .18s ease;
+}
+.product-card.buy-open .shipping-options{
+  max-height:270px;
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+.shipping-title{
+  font-weight:900;
+  color:var(--ink);
+  line-height:1.2;
+}
+.shipping-option{
+  width:100%;
+  display:grid;
+  grid-template-columns:32px 1fr;
+  align-items:center;
+  gap:10px;
+  text-align:left;
+  border:0;
+  border-radius:16px;
+  padding:10px 12px;
+  background:var(--paper);
+  color:var(--ink);
+  cursor:pointer;
+  box-shadow:0 4px 0 rgba(16,16,16,.10);
+  transition:transform .14s ease, box-shadow .14s ease, background .14s ease;
+}
+.shipping-option:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 0 rgba(16,16,16,.12);
+  background:var(--cream);
+}
+.shipping-number{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#168a38;
+  color:#fff;
+  font-weight:900;
+}
+.shipping-option b{
+  display:block;
+  color:var(--peach-dark);
+  line-height:1.12;
+}
+.shipping-option small{
+  display:block;
+  margin-top:2px;
+  color:var(--ink);
+  font-weight:800;
+  line-height:1.25;
+}
+
+@media (max-width:520px){
+  .free-shipping{
+    display:flex;
+    width:max-content;
+    margin:6px 0 0;
+  }
+  .shipping-options{padding:12px}
+  .shipping-option{grid-template-columns:28px 1fr;padding:10px}
+}
