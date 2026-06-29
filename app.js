@@ -9,11 +9,13 @@ const LINKS = {
 
 const PRODUTOS = [
   { nome:"Gatinho Silly Milkshake", preco:"R$ 58,00", precoSemTaxa:"R$ 45,00", desc:"Amigurumi da nossa mascote em versão chaveiro, feito à mão com carinho.", img:"img/gatorosa.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-7054796944-gatinho-de-croch-rosa-_JM", tag:"Novo" },
-  { nome:"Ursinha Rosa De Crochê Com Lacinhos", preco:"R$ 149,90", precoSemTaxa:"R$ 119,90", desc:"Ursinha Rosa De Crochê Com Lacinhos.", img:"img/ursinharosa.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825305923-ursinha-rosa-de-croch-com-lacinhos-_JM", tag:"Hit" },
-  { nome:"Sylvanian Coelho Chocolate", preco:"R$ 189,90", precoSemTaxa:"R$ 152,90", desc:" Sylvanian Coelho de chocolate feito com linha chenille, macio e perfeito para presentear. Altura: 37 cm", img:"img/coelho_choc.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825137483-sylvanian-coelho-chocolate-amigurumi-37cm-_JM", tag:"Presente" },
-  { nome:"Hello Kitty", preco:"R$ 110,00", precoSemTaxa:"R$ 110,00", desc:"Pelúcia em crochê cheia de charme, delicadeza e personalidade.", img:"", mercadoLivre:"COLE_AQUI_O_LINK_DO_MERCADO_LIVRE", tag:"Fofo" },
-  { nome:"Chaveiro Coração", preco:"R$ 24,90", precoSemTaxa:"R$ 24,90", desc:"O presentinho perfeito para levar um toque handmade para todo lugar.", img:"", mercadoLivre:"COLE_AQUI_O_LINK_DO_MERCADO_LIVRE", tag:"Mini" },
-  { nome:"Móbile Passarinhos", preco:"R$ 149,90", precoSemTaxa:"R$ 149,90", desc:"Decoração delicada e colorida para transformar cantinhos especiais.", img:"", mercadoLivre:"COLE_AQUI_O_LINK_DO_MERCADO_LIVRE", tag:"Decor" }
+  { nome:"Ursinha Rosa De Crochê Com Lacinhos", preco:"R$ 149,90", precoSemTaxa:"R$ 119,90", desc:"Ursinha Rosa De Crochê Com Lacinhos. Altura: 22cm", img:"img/ursinharosa.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825305923-ursinha-rosa-de-croch-com-lacinhos-_JM", tag:"Novo" },
+  { nome:"Sylvanian Coelho Chocolate", preco:"R$ 189,90", precoSemTaxa:"R$ 152,90", desc:"Feito com linha chenille, macio e perfeito para presentear. Altura: 37 cm", img:"img/coelho_choc.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825137483-sylvanian-coelho-chocolate-amigurumi-37cm-_JM", tag:"Novo" },
+  { nome:"Snoopy Chaveiro", preco:"R$ 75,00", precoSemTaxa:"R$ 54,90", desc:"Chaveiro Snoopy feito de linha amigurumi. Altura: 13 cm", img:"img/snoopy.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825260713-snoopy-de-croch-_JM", tag:"Novo" },
+  { nome:"Ursinho Amarelo", preco:"R$ 149,90", precoSemTaxa:"R$ 119,90", desc:"Ursinho amarelo com roupinha feito com linha chenille. Altura: 22cm.", img:"img/ursinhoamarelo.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825320109-ursinho-amarelo-croch-_JM", tag:"Novo" },
+  { nome:"Jiji (Kiki's Delivery Service)", preco:"R$ 119,90", precoSemTaxa:"R$ 89,90", desc:"Feito com linha Chenille, com detalhes em feltro. Altura: 24 cm.", img:"img/Jiji.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825115459-jiji-amigurumi-kikis-delivery-service-_JM", tag:"Novo" },
+  { nome:"Coelhinha Rosa", preco:"R$ 159,90", precoSemTaxa:"R$ 129,90", desc:"Coelhinha com vestido rosa e lacinhos feito com linha chenille. Altura: 22cm.", img:"img/coelha.jpg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4825321417-coelhinha-de-vestido-rosa-de-croch-_JM", tag:"Novo" },
+  { nome:"Miffy tomatinho", preco:"R$ 99,00", precoSemTaxa:"R$ 74,90", desc:"Miffy tomatinho feito de linha amigurumi soft. Altura: 17 cm.", img:"img/miffy.jpeg", mercadoLivre:"https://produto.mercadolivre.com.br/MLB-7057391270-miffy-tomatinho-de-croch-_JM", tag:"Novo" }
 ];
 
 const PLACEHOLDER = /COLE_AQUI/;
