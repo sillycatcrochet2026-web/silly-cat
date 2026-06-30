@@ -1476,3 +1476,281 @@ body[data-page="produtos"] .catalog-callout .soft-btn{
     flex-basis:36px;
   }
 }
+
+
+/* ============================================================
+   Menu: ajuste para nova página Contato
+   ============================================================ */
+.nav-links{
+  gap:clamp(16px,2.25vw,30px);
+}
+
+/* ============================================================
+   Página Contato: layout alinhado às páginas Sobre, Produtos e Cuidados
+   ============================================================ */
+:root{
+  --font-contact-title:var(--font-about-title, "MADESOULMAZE", "MADE Soulmaze", "Pacifico", cursive);
+  --font-contact-text:var(--font-about-text, "Codigra", "Codriga", "Codigra Demo", "Quicksand", system-ui, sans-serif);
+}
+
+body[data-page="contato"] .page-hero{
+  min-height:clamp(390px,54vh,580px);
+  display:flex;
+  align-items:center;
+  padding-top:clamp(68px,7.5vw,92px);
+  padding-bottom:clamp(54px,6.5vw,78px);
+}
+body[data-page="contato"] .page-hero .wrap{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+body[data-page="contato"] .page-hero .page-title{
+  font-family:var(--font-contact-title);
+  font-weight:400;
+  text-transform:none;
+  letter-spacing:.025em;
+  line-height:1.08;
+  font-size:clamp(2.75rem,7.2vw,5.75rem);
+  margin:14px auto 0;
+  max-width:920px;
+}
+body[data-page="contato"] .page-hero p{
+  font-family:var(--font-contact-text);
+  font-weight:400;
+  letter-spacing:.02em;
+  font-size:clamp(1.05rem,1.85vw,1.36rem);
+  line-height:1.45;
+  max-width:800px;
+  margin-top:26px;
+  padding:13px 24px;
+}
+body[data-page="contato"] .page-hero .kicker{
+  font-family:var(--font-contact-text);
+  font-weight:700;
+  letter-spacing:.07em;
+}
+
+.contact-page-content{
+  padding-top:clamp(48px,6vw,74px);
+}
+.contact-wrap{
+  display:grid;
+  gap:clamp(20px,2.5vw,30px);
+}
+.contact-intro-card,
+.social-card{
+  text-align:center;
+  max-width:960px;
+  margin-inline:auto;
+  width:100%;
+  padding:clamp(28px,4vw,46px) clamp(22px,5vw,58px);
+  background:linear-gradient(135deg,rgba(255,254,242,.96),rgba(255,253,220,.9));
+  border-color:rgba(184,12,0,.38);
+}
+.contact-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin:0 auto 12px;
+  padding:6px 18px;
+  border-radius:999px;
+  background:var(--blue-soft);
+  color:var(--peach-dark);
+  font-family:var(--font-contact-text);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  font-size:.88rem;
+}
+.contact-intro-card h2,
+.social-card h2,
+.contact-card h2{
+  font-family:var(--font-contact-title);
+  font-weight:400;
+  text-transform:none;
+  letter-spacing:.025em;
+  color:var(--peach-dark);
+}
+.contact-intro-card h2,
+.social-card h2{
+  font-size:clamp(2rem,4.4vw,3.55rem);
+  line-height:1.08;
+  margin-bottom:14px;
+}
+.contact-intro-card p,
+.social-card p,
+.contact-card p{
+  font-family:var(--font-contact-text);
+  font-weight:400;
+  letter-spacing:.02em;
+  line-height:1.62;
+}
+.contact-intro-card p,
+.social-card p{
+  max-width:760px;
+  margin-left:auto;
+  margin-right:auto;
+  font-size:clamp(1rem,1.35vw,1.16rem);
+}
+.contact-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:clamp(20px,2.4vw,28px);
+}
+.contact-card{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  min-height:250px;
+  padding:clamp(24px,3vw,34px);
+  overflow:hidden;
+}
+.contact-card::after{
+  content:"";
+  position:absolute;
+  right:-34px;
+  bottom:-40px;
+  width:140px;
+  height:140px;
+  border-radius:50%;
+  background:rgba(121,150,203,.16);
+  pointer-events:none;
+}
+.contact-card-icon{
+  width:46px;
+  height:46px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:var(--blue);
+  color:var(--paper);
+  font-family:"Quicksand",system-ui,sans-serif;
+  font-size:1.4rem;
+  font-weight:900;
+  box-shadow:0 5px 0 rgba(16,16,16,.12);
+  margin-bottom:18px;
+}
+.contact-card h2{
+  font-size:clamp(1.55rem,3vw,2.35rem);
+  line-height:1.08;
+  margin-bottom:10px;
+}
+.contact-card p{
+  max-width:420px;
+  margin-bottom:18px;
+  font-size:clamp(.98rem,1.12vw,1.06rem);
+}
+.contact-link{
+  position:relative;
+  z-index:1;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:auto;
+  padding:11px 16px;
+  border-radius:999px;
+  background:var(--peach);
+  color:var(--paper);
+  font-family:var(--font-contact-text);
+  font-weight:700;
+  line-height:1.2;
+  word-break:break-word;
+  box-shadow:0 5px 0 rgba(16,16,16,.14);
+}
+.social-links-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  max-width:720px;
+  margin:24px auto 0;
+}
+.social-link-card{
+  display:grid;
+  gap:4px;
+  padding:18px 20px;
+  border-radius:22px;
+  background:var(--blue);
+  color:var(--paper);
+  box-shadow:0 6px 0 rgba(16,16,16,.12);
+  transition:transform .14s ease, box-shadow .14s ease, background .14s ease;
+}
+.social-link-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 0 rgba(16,16,16,.13);
+  background:var(--peach);
+}
+.social-link-card span,
+.social-link-card b{
+  font-family:var(--font-contact-text);
+  letter-spacing:.02em;
+}
+.social-link-card span{
+  font-weight:700;
+  text-transform:uppercase;
+  font-size:.86rem;
+}
+.social-link-card b{
+  font-weight:400;
+  font-size:clamp(1rem,1.6vw,1.18rem);
+}
+
+@media (max-width:900px){
+  .nav-links{
+    gap:0;
+  }
+  .contact-grid,
+  .social-links-grid{
+    grid-template-columns:1fr;
+  }
+  body[data-page="contato"] .page-hero{
+    min-height:clamp(350px,52vh,520px);
+    padding-top:62px;
+    padding-bottom:56px;
+  }
+  body[data-page="contato"] .page-hero .page-title{
+    font-size:clamp(2.45rem,11.5vw,4.55rem);
+    line-height:1.1;
+  }
+  body[data-page="contato"] .page-hero p{
+    font-size:clamp(1.02rem,4vw,1.28rem);
+    margin-top:22px;
+  }
+  .contact-card{
+    min-height:auto;
+    align-items:center;
+    text-align:center;
+  }
+}
+
+@media (max-width:520px){
+  body[data-page="contato"] .page-hero{
+    min-height:clamp(330px,58vh,470px);
+    padding-top:54px;
+    padding-bottom:48px;
+  }
+  body[data-page="contato"] .page-hero .page-title{
+    font-size:clamp(2.1rem,13vw,3.35rem);
+    line-height:1.14;
+  }
+  body[data-page="contato"] .page-hero p{
+    font-size:clamp(1rem,5vw,1.12rem);
+    line-height:1.46;
+    padding:12px 18px;
+  }
+  .contact-intro-card,
+  .social-card,
+  .contact-card{
+    padding:24px 20px;
+  }
+  .contact-intro-card h2,
+  .social-card h2{
+    font-size:clamp(1.8rem,10vw,2.65rem);
+  }
+  .contact-link{
+    width:100%;
+    text-align:center;
+  }
+}
