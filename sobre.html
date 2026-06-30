@@ -53,7 +53,7 @@
 <header class="site-header">
   <div class="nav-inner">
     <a class="brand" href="index.html" aria-label="Silly Cat Crochê — página inicial">
-      <svg viewBox="0 0 240 250" aria-hidden="true"><use href="#sillycat"></use></svg>
+      <img class="brand-icon" src="img/menu-icon-sillycat.jpg" alt="" aria-hidden="true" loading="eager" decoding="async">
       <span>Silly Cat</span>
     </a>
     <button class="nav-toggle" id="navToggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="navLinks"><span></span></button>
@@ -79,50 +79,71 @@
     <div class="wrap reveal">
       <span class="kicker">Sobre nós</span>
       <h1 class="page-title">A gata<br>mais silly</h1>
-      <p>Uma marca artesanal para quem ama peças fofas, originais e cheias de personalidade.</p>
+      <p>Uma marca artesanal para quem ama peças descoladas.</p>
     </div>
   </section>
-  <section class="page-content">
-    <div class="wrap about-layout">
-      <div class="text-card reveal">
-        <h2>Quem somos</h2>
-        <p>A <b>Silly Cat Crochê</b> nasceu do encanto por transformar fios em bichinhos cheios de vida. Cada peça é feita à mão, ponto por ponto, com calma, carinho e aquele toque divertido que deixa tudo mais especial.</p>
-        <p>Trabalhamos com <b>amigurumis, chaveiros, decorações e peças personalizadas</b>. Gostamos de criar produtos que pareçam presentes: delicados, coloridos e com cara de achado único.</p>
-        <div class="mini-grid">
-          <div class="mini-card"><b>Feito</b>à mão</div>
-          <div class="mini-card"><b>Peças</b>únicas</div>
-          <div class="mini-card"><b>Envio</b>Brasil</div>
+  <section class="page-content about-page-content">
+    <div class="wrap">
+      <section class="text-card about-center-card reveal" aria-labelledby="quem-somos-title">
+        <h2 id="quem-somos-title">Quem somos</h2>
+        <p>A <b>Silly Cat Crochê</b> representa a ideia de nos conectarmos com a diversão que tínhamos na infância por meio dos amigurumis. Um espaço para sermos bobos e criativos, porque ser adulto não precisa ser chato! O nome é inspirado na nossa silly cat (Lili) que alegra os nossos dias com o seu jeito boboca e espontâneo de ser.</p>
+
+        
+      </section>
+      <section class="team-section" aria-labelledby="equipe-title">
+        <div class="team-section-head reveal">
+          <h2 id="equipe-title" class="section-title">Equipe</h2>
         </div>
-      </div>
-      <aside class="profile-card reveal">
-        <div class="profile-photo"><svg viewBox="0 0 240 250" aria-hidden="true"><use href="#sillycat"></use></svg></div>
-        <p class="caption">Lili, a inspiração 💖</p>
-        <div class="text-card" style="margin-top:18px;padding:20px;box-shadow:none">
-          <h3>Ficha técnica</h3>
+
+        <div class="team-profile-grid">
+          <article class="team-profile-card reveal">
+            <figure class="team-photo-slot">
+              <img src="img/Anna.png" alt="Foto da Anna" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+              <span class="team-photo-placeholder" aria-hidden="true">Foto da Anna</span>
+            </figure>
+            <div class="team-profile-copy">
+              <h3>Anna</h3>
+              <p><b>Cargo:</b> Crocheteira</p>
+              <p><b>Hobbies:</b> Amo viajar, fazer crochê, testar receitinhas culinárias, fazer colagens e girar muito no pole</p>
+              <p><b>Comida preferida:</b> Pizza</p>
+              <p><b>Estilo musical:</b> Pop e k-pop</p>
+              <p><b>Estilo de crochê:</b> Amigurumis, decorações e roupas</p>
+            </div>
+          </article>
+
+          <article class="team-profile-card reveal">
+            <figure class="team-photo-slot">
+              <img src="img/Samara.png" alt="Foto da Samara" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+              <span class="team-photo-placeholder" aria-hidden="true">Foto da Samara</span>
+            </figure>
+            <div class="team-profile-copy">
+              <h3>Samara</h3>
+              <p><b>Cargo:</b> Crocheteira</p>
+              <p><b>Hobbies:</b> Gosto de fazer colagens, decorações para casa, às vezes invento de pintar e faço pole</p>
+              <p><b>Comida preferida:</b> Sushi</p>
+              <p><b>Estilo musical:</b> Pop e k-pop</p>
+              <p><b>Estilo de crochê:</b> Amigurumis e tapestry</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <aside class="about-lili-card reveal" aria-label="Lili, a inspiração">
+        <figure class="about-lili-photo">
+          <!-- Troque o caminho abaixo pela foto da Lili que estiver na pasta img/ -->
+          <img src="img/Lili.png" alt="Foto da Lili, a gata inspiração da Silly Cat" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+          <span class="lili-photo-placeholder" aria-hidden="true">Foto da Lili</span>
+        </figure>
+        <div class="about-lili-text">
+          <p class="caption">Lili, a inspiração</p>
+          <p><b>Cargo:</b> CEO </p>
           <p><b>Apelidos:</b> Lilica, Lilizinha, Lilão.</p>
           <p><b>Hobbies:</b> cochilar à tarde, esconder brinquedos no sofá e correr pela casa.</p>
+          <p><b>Comida preferida:</b> Alga</p>
+          <p><b>Idade:</b> 6 anos</p>
         </div>
       </aside>
-    </div>
-    <div class="wrap team-strip">
-      <article class="team-card reveal">
-        <h3>Anna</h3>
-        <p>crocheteira & viajante 💙</p>
-        <ul>
-          <li>Amigurumis, decorações e roupas</li>
-          <li>Linha favorita: chenille</li>
-          <li>Trilha sonora: pop e k-pop</li>
-        </ul>
-      </article>
-      <article class="team-card reveal">
-        <h3>Samara</h3>
-        <p>amigurumi & tapestry 💛</p>
-        <ul>
-          <li>Amigurumis, tapestry e filet crochet</li>
-          <li>Linha favorita: chenille</li>
-          <li>Hobbies: colagens, decoração, pintura e pole</li>
-        </ul>
-      </article>
+
     </div>
   </section>
 </main>
