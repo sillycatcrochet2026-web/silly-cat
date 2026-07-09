@@ -1779,30 +1779,56 @@ body.reveal-ready .reveal.in{
   }
 }
 
-
 /* ============================================================
-   Ajuste compra: 3 opções e sem texto "Frete grátis"
-   Mercado Livre em verde, no mesmo padrão visual das opções
+   Ajuste compra: 3 opções uniformes
+   - Remove o texto "Frete grátis" dos cards via app.js
+   - A opção Mercado Livre usa o mesmo layout dos botões 1 e 2
    ============================================================ */
 .product-card.buy-open .shipping-options{
-  max-height:410px;
+  max-height:430px;
 }
+.shipping-option,
 .marketplace-option{
-  background:#168a38;
-  color:#fff;
-  border:2px solid rgba(22,138,56,.24);
+  min-height:88px;
+  background:var(--paper) !important;
+  color:var(--ink) !important;
+  border:0 !important;
+  border-radius:16px;
+  padding:10px 12px;
+  display:grid;
+  grid-template-columns:32px 1fr;
+  align-items:center;
+  gap:10px;
+  text-align:left;
 }
+.shipping-option:hover,
 .marketplace-option:hover{
-  background:#1b9a43;
+  background:var(--cream) !important;
 }
+.shipping-option .shipping-number,
 .marketplace-option .shipping-number{
-  background:#fff;
-  color:#168a38;
+  background:#168a38 !important;
+  color:#fff !important;
 }
-.marketplace-option b,
-.marketplace-option small{
-  color:#fff;
-}
-.marketplace-option small{
+.shipping-option b,
+.marketplace-option b{
+  color:var(--peach-dark) !important;
+  font-family:var(--font-products-text, "Codigra", "Codriga", "Quicksand", system-ui, sans-serif);
   font-weight:700;
+  line-height:1.12;
+}
+.shipping-option small,
+.marketplace-option small{
+  color:var(--ink) !important;
+  font-family:var(--font-products-text, "Codigra", "Codriga", "Quicksand", system-ui, sans-serif);
+  font-weight:400 !important;
+  line-height:1.25;
+}
+@media (max-width:520px){
+  .shipping-option,
+  .marketplace-option{
+    grid-template-columns:28px 1fr;
+    min-height:84px;
+    padding:10px;
+  }
 }

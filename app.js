@@ -192,7 +192,7 @@ function productCard(product, index){
         </button>
         <button class="shipping-option marketplace-option" type="button" data-shipping-link="${escapeHtml(mercadoLivreLink)}">
           <span class="shipping-number">3</span>
-          <span><b>Comprar no Mercado Livre</b><small>Preço: ${escapeHtml(precoMercadoLivre)}</small></span>
+          <span><b>Mercado Livre</b><small>Comprar — Preço: ${escapeHtml(precoMercadoLivre)}</small></span>
         </button>
       </div>
     </div>
