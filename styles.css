@@ -1754,3 +1754,27 @@ body[data-page="contato"] .page-hero .kicker{
     text-align:center;
   }
 }
+
+
+/* ============================================================
+   Segurança: conteúdo visível mesmo se o JavaScript falhar
+   ============================================================ */
+.reveal{
+  opacity:1;
+  transform:none;
+}
+body.reveal-ready .reveal{
+  opacity:0;
+  transform:translateY(18px);
+  transition:opacity .55s ease, transform .55s ease;
+}
+body.reveal-ready .reveal.in{
+  opacity:1;
+  transform:none;
+}
+@media (prefers-reduced-motion:reduce){
+  body.reveal-ready .reveal{
+    opacity:1;
+    transform:none;
+  }
+}
