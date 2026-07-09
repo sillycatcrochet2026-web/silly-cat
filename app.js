@@ -19,6 +19,17 @@ const PRODUTOS = [
     tag:"Novo"
   },
   {
+    nome:"Snoopy lacinhos rosa",
+    preco:"R$ 115,90",
+    precoSemTaxa:"R$ 105,90",
+    desc:"Snoopy com lacinhos rosa feito de linha amigurumi. Altura: 40cm; Largura mão a mão 25cm",
+    img:"img/snoopy_lacinhos_rosa.jpeg",
+    moira:"https://app.moirabr.com.br/product/snoopy-lacinhos-rosa/",
+    mercadoLivre:"https://produto.mercadolivre.com.br/MLB-7132125390-snoopy-lacinhos-rosa-_JM",
+    precoMercadoLivre:"R$ 139,90",
+    tag:"Novo"
+  },
+  {
     nome:"Chaveiro gatinho amarelo",
     preco:"R$ 39,90",
     precoSemTaxa:"R$ 39,90",
@@ -88,7 +99,6 @@ const PRODUTOS = [
     moira:"https://app.moirabr.com.br/product/miffy-tomatinho-17-cm/",
     mercadoLivre:"https://produto.mercadolivre.com.br/MLB-7057391270-miffy-tomatinho-de-croch-_JM",
     precoMercadoLivre:"R$ 99,00",
-    tag:"Novo"
   },
   {
     nome:"Gatinho Silly Milkshake",
@@ -155,23 +165,35 @@ function buildWhatsAppLink(product){
   return `${base}${separator}text=${encodeURIComponent(mensagem)}`;
 }
 
+function normalizeProductTag(product){
+  const tag = String(product.tag || "").trim().toLowerCase();
+  if(tag === "novo") return "NOVO";
+  if(tag === "esgotado") return "ESGOTADO";
+  return "";
+}
+
 function productCard(product, index){
   const hasImage = product.img && !PLACEHOLDER.test(product.img);
+  const tagLabel = normalizeProductTag(product);
+  const tagClass = tagLabel ? ` product-badge--${tagLabel.toLowerCase()}` : "";
+  const badge = tagLabel ? `<span class="product-badge${tagClass}">${escapeHtml(tagLabel)}</span>` : "";
+  const fallbackMedia = `<div class="product-placeholder">${sillyCatSvg()}</div>${badge}`;
   const media = hasImage
-    ? `<img src="${escapeHtml(product.img)}" alt="${escapeHtml(product.nome)}" loading="lazy" onerror="this.closest('.product-media').innerHTML='<div class=&quot;product-placeholder&quot;>${sillyCatSvg().replaceAll('"','&quot;')}</div><span class=&quot;product-badge&quot;>${escapeHtml(product.tag || 'Silly')}</span>'">`
-    : `<div class="product-placeholder">${sillyCatSvg()}</div>`;
+    ? `<img src="${escapeHtml(product.img)}" alt="${escapeHtml(product.nome)}" loading="lazy" onerror="this.closest('.product-media').innerHTML='${fallbackMedia.replaceAll('"','&quot;')}'">`
+    : fallbackMedia;
 
   const optionsId = `shipping-options-${index}`;
   const whatsappLink = buildWhatsAppLink(product);
   const moiraLink = product.moira || LINKS.catalogo;
   const mercadoLivreLink = product.mercadoLivre;
+  const precoMoira = product.preco || product.precoSemTaxa;
   const precoMercadoLivre = product.precoMercadoLivre || product.preco;
   const precoSemTaxa = product.precoSemTaxa || product.preco;
 
   return `<article class="product-card reveal" style="--i:${index}">
     <div class="product-media" style="background:${['#e6edf8','#fffddc','#dbe5f5','#ffffff'][index%4]}">
       ${media}
-      <span class="product-badge">${escapeHtml(product.tag || 'Silly')}</span>
+      ${hasImage ? badge : ""}
     </div>
     <div class="product-body">
       <h3 class="product-name">${escapeHtml(product.nome)}</h3>
@@ -184,15 +206,15 @@ function productCard(product, index){
         <p class="shipping-title">Envios para:</p>
         <button class="shipping-option" type="button" data-shipping-link="${escapeHtml(whatsappLink)}">
           <span class="shipping-number">1</span>
-          <span><b>São Carlos (SP)</b><small>${escapeHtml(precoSemTaxa)} + frete a combinar</small></span>
+          <span><b>Whatsapp</b><small> ${escapeHtml(precoSemTaxa)} + Frete a combinar</small></span>
         </button>
         <button class="shipping-option" type="button" data-shipping-link="${escapeHtml(moiraLink)}">
           <span class="shipping-number">2</span>
-          <span><b>Outras cidades</b><small>Comprar pela Moira</small></span>
+          <span><b>Plataforma Moira</b><small>Preço: ${escapeHtml(precoMoira)} + Frete do site </small></span>
         </button>
         <button class="shipping-option marketplace-option" type="button" data-shipping-link="${escapeHtml(mercadoLivreLink)}">
           <span class="shipping-number">3</span>
-          <span><b>Mercado Livre</b><small>Comprar — Preço: ${escapeHtml(precoMercadoLivre)}</small></span>
+          <span><b>Mercado Livre</b><small>Preço: ${escapeHtml(precoMercadoLivre)} com Frete Incluso </small></span>
         </button>
       </div>
     </div>
