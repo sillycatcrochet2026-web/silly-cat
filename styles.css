@@ -1778,3 +1778,31 @@ body.reveal-ready .reveal.in{
     transform:none;
   }
 }
+
+
+/* ============================================================
+   Ajuste compra: 3 opções e sem texto "Frete grátis"
+   Mercado Livre em verde, no mesmo padrão visual das opções
+   ============================================================ */
+.product-card.buy-open .shipping-options{
+  max-height:410px;
+}
+.marketplace-option{
+  background:#168a38;
+  color:#fff;
+  border:2px solid rgba(22,138,56,.24);
+}
+.marketplace-option:hover{
+  background:#1b9a43;
+}
+.marketplace-option .shipping-number{
+  background:#fff;
+  color:#168a38;
+}
+.marketplace-option b,
+.marketplace-option small{
+  color:#fff;
+}
+.marketplace-option small{
+  font-weight:700;
+}
