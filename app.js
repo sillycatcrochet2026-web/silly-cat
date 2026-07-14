@@ -22,7 +22,7 @@ const PRODUTOS = [
     nome:"Snoopy lacinhos rosa",
     preco:"R$ 115,90",
     precoSemTaxa:"R$ 105,90",
-    desc:"Snoopy com lacinhos rosa feito de linha amigurumi. Altura: 40cm; Largura mão a mão 25cm",
+    desc:"Snoopy com lacinhos rosa feito de linha chenille. Altura: 40cm; Largura mão a mão 25cm",
     img:"img/snoopy_lacinhos_rosa.jpeg",
     moira:"https://app.moirabr.com.br/product/snoopy-lacinhos-rosa/",
     mercadoLivre:"https://produto.mercadolivre.com.br/MLB-7132125390-snoopy-lacinhos-rosa-_JM",
