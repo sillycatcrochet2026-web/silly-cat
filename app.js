@@ -9,7 +9,7 @@ const LINKS = {
 const PRODUTOS = [
   {
     nome:"Pompompurin",
-    preco:"R$ 45,90",
+    preco:"R$ 52,90",
     precoSemTaxa:"R$ 45,90",
     desc:"Pompompurin feito de linha amigurumi. Altura: 11cm; Largura mão a mão 14cm",
     img:"img/pompompurin1.jpeg",
@@ -32,7 +32,7 @@ const PRODUTOS = [
   {
     nome:"Chaveiro gatinho amarelo",
     preco:"R$ 39,90",
-    precoSemTaxa:"R$ 39,90",
+    precoSemTaxa:"R$ 35,90",
     desc:"Chaveiro gatinho amarelo feito de linha amigurumi. Altura: 8cm.",
     img:"img/gatinho_amarelo.jpeg",
     moira:"https://app.moirabr.com.br/product/gatinho-chaveiro-2/",
@@ -43,7 +43,7 @@ const PRODUTOS = [
   {
     nome:"Ursinha Rosa De Crochê Com Lacinhos",
     preco:"R$ 129,90",
-    precoSemTaxa:"R$ 129,90",
+    precoSemTaxa:"R$ 119,90",
     desc:"Ursinha Rosa De Crochê Com Lacinhos. Altura: 22cm",
     img:"img/ursinharosa.jpeg",
     moira:"https://app.moirabr.com.br/product/ursinha-rosa-com-lacinhos-de-croche/",
@@ -53,7 +53,7 @@ const PRODUTOS = [
   {
     nome:"Sylvanian Coelho Chocolate",
     preco:"R$ 169,90",
-    precoSemTaxa:"R$ 169,90",
+    precoSemTaxa:"R$ 152,90",
     desc:"Feito com linha chenille, macio e perfeito para presentear. Altura: 37 cm",
     img:"img/coelho_choc.jpeg",
     moira:"https://app.moirabr.com.br/product/sylvanian-coelho-de-chocolate/",
@@ -63,7 +63,7 @@ const PRODUTOS = [
   {
     nome:"Ursinho Amarelo",
     preco:"R$ 129,90",
-    precoSemTaxa:"R$ 129,90",
+    precoSemTaxa:"R$ 119,90",
     desc:"Ursinho amarelo com roupinha feito com linha chenille. Altura: 22cm.",
     img:"img/ursinhoamarelo.jpeg",
     moira:"https://app.moirabr.com.br/product/ursinho-amarelo-com-chapeu/",
@@ -73,7 +73,7 @@ const PRODUTOS = [
   {
     nome:"Jiji (Kiki's Delivery Service)",
     preco:"R$ 97,90",
-    precoSemTaxa:"R$ 97,90",
+    precoSemTaxa:"R$ 89,90",
     desc:"Feito com linha Chenille, com detalhes em feltro. Altura: 24 cm.",
     img:"img/Jiji.jpeg",
     moira:"https://app.moirabr.com.br/product/jiji-kikis-delivery-service/",
@@ -83,7 +83,7 @@ const PRODUTOS = [
   {
     nome:"Coelhinha Rosa",
     preco:"R$ 139,90",
-    precoSemTaxa:"R$ 139,90",
+    precoSemTaxa:"R$ 125,90",
     desc:"Coelhinha com vestido rosa e lacinhos feito com linha chenille. Altura: 22cm.",
     img:"img/coelha.jpg",
     moira:"https://app.moirabr.com.br/product/coelhinha-com-lacinhos-rosa/",
@@ -93,7 +93,7 @@ const PRODUTOS = [
   {
     nome:"Miffy tomatinho",
     preco:"R$ 82,90",
-    precoSemTaxa:"R$ 82,90",
+    precoSemTaxa:"R$ 74,90",
     desc:"Miffy tomatinho feito de linha amigurumi soft. Altura: 17 cm.",
     img:"img/miffy.jpeg",
     moira:"https://app.moirabr.com.br/product/miffy-tomatinho-17-cm/",
@@ -103,7 +103,7 @@ const PRODUTOS = [
   {
     nome:"Gatinho Silly Milkshake",
     preco:"R$ 49,90",
-    precoSemTaxa:"R$ 49,90",
+    precoSemTaxa:"R$ 45,90",
     desc:"Amigurumi da nossa mascote em versão chaveiro, feito à mão com carinho.",
     img:"img/gatorosa.jpeg",
     moira:"https://app.moirabr.com.br/product/gatinho-rosa-milkshake/",
@@ -114,7 +114,7 @@ const PRODUTOS = [
   {
     nome:"Snoopy Chaveiro",
     preco:"R$ 54,90",
-    precoSemTaxa:"R$ 54,90",
+    precoSemTaxa:"R$ 49,90",
     desc:"Chaveiro Snoopy feito de linha amigurumi. Altura: 13 cm",
     img:"img/snoopy.jpeg",
     moira:"https://app.moirabr.com.br/product/snoopy-chaveiro-2/",
