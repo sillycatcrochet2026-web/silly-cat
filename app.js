@@ -36,8 +36,8 @@ const PRODUTOS = [
     desc:"Flâmula de coraçãozinhos para decorar a casa, feita de linha barroco. Altura: 23 cm; Largura: 25cm",
     img:"img/flamula.jpeg",
     moira:"https://app.moirabr.com.br/product/flamula-coracao/",
-    mercadoLivre:"https://produto.mercadolivre.com.br/MLB-7132125390-snoopy-lacinhos-rosa-_JM",
-    precoMercadoLivre:"R$ 109,90",
+    mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4894700367-flmula-coraco-_JM",
+    precoMercadoLivre:"R$ 119,90",
     tag:"Novo"
   },
   {
