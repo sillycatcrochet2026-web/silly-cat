@@ -30,6 +30,17 @@ const PRODUTOS = [
     tag:"Novo"
   },
   {
+    nome:"Flâmula coração",
+    preco:"R$ 98,90",
+    precoSemTaxa:"R$ 89,90",
+    desc:"Flâmula de coraçãozinhos para decorar a casa, feita de linha barroco. Altura: 23 cm; Largura: 25cm",
+    img:"img/flamula.jpeg",
+    moira:"https://app.moirabr.com.br/product/flamula-coracao/",
+    mercadoLivre:"https://produto.mercadolivre.com.br/MLB-7132125390-snoopy-lacinhos-rosa-_JM",
+    precoMercadoLivre:"R$ 109,90",
+    tag:"Novo"
+  },
+  {
     nome:"Chaveiro gatinho amarelo",
     preco:"R$ 39,90",
     precoSemTaxa:"R$ 35,90",
