@@ -14,8 +14,8 @@ const PRODUTOS = [
     desc:"Kirby feito de linha pelúcia. Altura: 15cm; Largura: 17 cm",
     img:"img/kirby.jpeg",
     moira:"https://app.moirabr.com.br/product/kirby/",
-    mercadoLivre:"",
-    precoMercadoLivre:"R$",
+    mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4936674697-kirby-de-croch-_JM",
+    precoMercadoLivre:"R$89,90",
     tag:"Novo"
   },
   {
