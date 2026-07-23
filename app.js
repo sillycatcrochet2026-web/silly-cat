@@ -8,6 +8,17 @@ const LINKS = {
 
 const PRODUTOS = [
   {
+    nome:"Kirby",
+    preco:"R$ 75,90",
+    precoSemTaxa:"R$ 65,90",
+    desc:"Kirby feito de linha pelúcia. Altura: 15cm; Largura: 17 cm",
+    img:"img/kirby.jpeg",
+    moira:"https://app.moirabr.com.br/product/kirby/",
+    mercadoLivre:"",
+    precoMercadoLivre:"R$",
+    tag:"Novo"
+  },
+  {
     nome:"Pompompurin",
     preco:"R$ 52,90",
     precoSemTaxa:"R$ 45,90",
@@ -49,7 +60,7 @@ const PRODUTOS = [
     moira:"https://app.moirabr.com.br/product/gatinho-chaveiro-2/",
     mercadoLivre:"https://produto.mercadolivre.com.br/MLB-4867134163-gatinho-amarelo-croch-_JM",
     precoMercadoLivre:"R$ 44,90",
-    tag:"Novo"
+    
   },
   {
     nome:"Ursinha Rosa De Crochê Com Lacinhos",
