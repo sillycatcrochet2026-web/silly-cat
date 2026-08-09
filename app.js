@@ -12,7 +12,7 @@ const PRODUTOS = [
     preco:"R$ 118,90",
     precoSemTaxa:"R$ 109,90",
     desc:"Pikachu feito de linha chenille. Altura: 23cm; Largura: 16cm",
-    img:"img/pikachu.jpeg",
+    img:"img/Pikachu.jpeg",
     moira:"https://app.moirabr.com.br/product/pikachu/",
     mercadoLivre:"https://www.mercadolivre.com.br/pikachu-de-croche/up/MLBU4664409980?pdp_filters=item_id:MLB7370142416",
     precoMercadoLivre:"R$149,90",
