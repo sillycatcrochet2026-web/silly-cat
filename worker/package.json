@@ -1,0 +1,14 @@
+{
+  "name": "silly-cat-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 execute silly-cat-orders --local --file=./schema.sql",
+    "db:remote": "wrangler d1 execute silly-cat-orders --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.68.0"
+  }
+}

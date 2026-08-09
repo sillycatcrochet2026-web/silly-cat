@@ -67,10 +67,13 @@
         <li><a href="contato.html" data-nav="contato">Contato</a></li>
       </ul>
     </nav>
-    <div class="header-icons" aria-hidden="true">
-      <span class="header-icon">☻</span>
-      <span class="header-icon">♡</span>
-      <span class="header-icon">🛒</span>
+    <div class="header-icons">
+      <span class="header-icon" aria-hidden="true">☻</span>
+      <span class="header-icon" aria-hidden="true">♡</span>
+      <button class="header-icon cart-header-button" type="button" data-open-cart aria-label="Abrir carrinho">
+        <span aria-hidden="true">🛒</span>
+        <span class="cart-count" data-cart-count hidden>0</span>
+      </button>
     </div>
   </div>
 </header>
@@ -110,6 +113,7 @@
   <p style="margin-top:10px;font-size:.88rem;opacity:.84">© <span id="year"></span> Silly Cat Crochê</p>
 </footer>
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="ecommerce-config.js"></script>
 <script src="app.js"></script>
 
 </body>

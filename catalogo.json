@@ -1,0 +1,144 @@
+[
+  {
+    "id": "pikachu",
+    "nome": "Pikachu",
+    "preco_centavos": 11890,
+    "desc": "Pikachu feito de linha chenille. Altura: 23cm; Largura: 16cm",
+    "img": "img/Pikachu.jpeg",
+    "tag": "Novo",
+    "estoque": 1,
+    "frete": {"largura": 20, "altura": 25, "comprimento": 18, "peso": 0.35, "provisorio": true}
+  },
+  {
+    "id": "kirby",
+    "nome": "Kirby",
+    "preco_centavos": 7590,
+    "desc": "Kirby feito de linha pelúcia. Altura: 15cm; Largura: 17 cm",
+    "img": "img/kirby.jpeg",
+    "tag": "Novo",
+    "estoque": 1,
+    "frete": {"largura": 20, "altura": 18, "comprimento": 20, "peso": 0.25, "provisorio": true}
+  },
+  {
+    "id": "pompompurin",
+    "nome": "Pompompurin",
+    "preco_centavos": 5290,
+    "desc": "Pompompurin feito de linha amigurumi. Altura: 11cm; Largura mão a mão 14cm",
+    "img": "img/pompompurin1.jpeg",
+    "tag": "Novo",
+    "estoque": 1,
+    "frete": {"largura": 16, "altura": 14, "comprimento": 16, "peso": 0.18, "provisorio": true}
+  },
+  {
+    "id": "snoopy-lacinhos-rosa",
+    "nome": "Snoopy lacinhos rosa",
+    "preco_centavos": 11590,
+    "desc": "Snoopy com lacinhos rosa feito de linha chenille. Altura: 40cm; Largura mão a mão 25cm",
+    "img": "img/snoopy_lacinhos_rosa.jpeg",
+    "tag": "Novo",
+    "estoque": 1,
+    "frete": {"largura": 30, "altura": 42, "comprimento": 22, "peso": 0.55, "provisorio": true}
+  },
+  {
+    "id": "flamula-coracao",
+    "nome": "Flâmula coração",
+    "preco_centavos": 9890,
+    "desc": "Flâmula de coraçãozinhos para decorar a casa, feita de linha barroco. Altura: 23 cm; Largura: 25cm",
+    "img": "img/flamula.jpeg",
+    "tag": "Novo",
+    "estoque": 1,
+    "frete": {"largura": 25, "altura": 8, "comprimento": 30, "peso": 0.30, "provisorio": true}
+  },
+  {
+    "id": "chaveiro-gatinho-amarelo",
+    "nome": "Chaveiro gatinho amarelo",
+    "preco_centavos": 3990,
+    "desc": "Chaveiro gatinho amarelo feito de linha amigurumi. Altura: 8cm.",
+    "img": "img/gatinho_amarelo.jpeg",
+    "estoque": 1,
+    "frete": {"largura": 12, "altura": 8, "comprimento": 16, "peso": 0.10, "provisorio": true}
+  },
+  {
+    "id": "ursinha-rosa-lacinhos",
+    "nome": "Ursinha Rosa De Crochê Com Lacinhos",
+    "preco_centavos": 12990,
+    "desc": "Ursinha Rosa De Crochê Com Lacinhos. Altura: 22cm",
+    "img": "img/ursinharosa.jpeg",
+    "estoque": 1,
+    "frete": {"largura": 18, "altura": 25, "comprimento": 18, "peso": 0.35, "provisorio": true}
+  },
+  {
+    "id": "sylvanian-coelho-chocolate",
+    "nome": "Sylvanian Coelho Chocolate",
+    "preco_centavos": 16990,
+    "desc": "Feito com linha chenille, macio e perfeito para presentear. Altura: 37 cm",
+    "img": "img/coelho_choc.jpeg",
+    "estoque": 1,
+    "frete": {"largura": 25, "altura": 40, "comprimento": 22, "peso": 0.55, "provisorio": true}
+  },
+  {
+    "id": "ursinho-amarelo",
+    "nome": "Ursinho Amarelo",
+    "preco_centavos": 12990,
+    "desc": "Ursinho amarelo com roupinha feito com linha chenille. Altura: 22cm.",
+    "img": "img/ursinhoamarelo.jpeg",
+    "estoque": 1,
+    "frete": {"largura": 18, "altura": 25, "comprimento": 18, "peso": 0.35, "provisorio": true}
+  },
+  {
+    "id": "jiji-kikis-delivery-service",
+    "nome": "Jiji (Kiki's Delivery Service)",
+    "preco_centavos": 9790,
+    "desc": "Feito com linha Chenille, com detalhes em feltro. Altura: 24 cm.",
+    "img": "img/Jiji.jpeg",
+    "estoque": 1,
+    "frete": {"largura": 18, "altura": 27, "comprimento": 18, "peso": 0.35, "provisorio": true}
+  },
+  {
+    "id": "coelhinha-rosa",
+    "nome": "Coelhinha Rosa",
+    "preco_centavos": 13990,
+    "desc": "Coelhinha com vestido rosa e lacinhos feito com linha chenille. Altura: 22cm.",
+    "img": "img/coelha.jpg",
+    "estoque": 1,
+    "frete": {"largura": 18, "altura": 25, "comprimento": 18, "peso": 0.35, "provisorio": true}
+  },
+  {
+    "id": "miffy-tomatinho",
+    "nome": "Miffy tomatinho",
+    "preco_centavos": 8290,
+    "desc": "Miffy tomatinho feito de linha amigurumi soft. Altura: 17 cm.",
+    "img": "img/miffy.jpeg",
+    "estoque": 1,
+    "frete": {"largura": 16, "altura": 20, "comprimento": 16, "peso": 0.22, "provisorio": true}
+  },
+  {
+    "id": "gatinho-silly-milkshake",
+    "nome": "Gatinho Silly Milkshake",
+    "preco_centavos": 4990,
+    "desc": "Amigurumi da nossa mascote em versão chaveiro, feito à mão com carinho.",
+    "img": "img/gatorosa.jpeg",
+    "tag": "Esgotado",
+    "estoque": 0,
+    "frete": {"largura": 12, "altura": 10, "comprimento": 16, "peso": 0.12, "provisorio": true}
+  },
+  {
+    "id": "snoopy-chaveiro",
+    "nome": "Snoopy Chaveiro",
+    "preco_centavos": 5490,
+    "desc": "Chaveiro Snoopy feito de linha amigurumi. Altura: 13 cm",
+    "img": "img/snoopy.jpeg",
+    "tag": "Esgotado",
+    "estoque": 0,
+    "frete": {"largura": 15, "altura": 10, "comprimento": 16, "peso": 0.15, "provisorio": true}
+  },
+  {
+    "id": "teste",
+    "nome": "TESTE",
+    "preco_centavos": 100,
+    "desc": "(TESTE) Miffy tomatinho feito de linha amigurumi soft. Altura: 17 cm.",
+    "img": "img/miffy.jpeg",
+    "estoque": 1,
+    "frete": {"largura": 16, "altura": 20, "comprimento": 16, "peso": 0.22, "provisorio": true}
+  }
+]

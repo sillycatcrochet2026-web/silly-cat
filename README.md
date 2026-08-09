@@ -1,85 +1,368 @@
-# Silly Cat Crochê — site
+# Silly Cat Crochê — e-commerce com Cloudflare Workers + D1
 
-Site institucional + lojinha da **Silly Cat Crochê**, em um único arquivo `index.html` (HTML, CSS e JavaScript juntos), pronto para o GitHub Pages. A gatinha mascote é um desenho em SVG embutido no próprio arquivo — não depende de imagem externa, então nunca quebra.
+Esta versão mantém o site no **GitHub Pages** e move a API para **Cloudflare Workers**, com pedidos persistidos no **D1**.
 
----
+Fluxo atual:
 
-## ✏️ O que você precisa preencher
-
-Abra o `index.html` e procure por **`★★★ EDITE AQUI`** (são só 2 pontos):
-
-### 1. Seu link de PIX
-No bloco `LINKS`, troque o texto pelo link do seu **Google Forms**:
-```js
-const LINKS = {
-  pixForm: "https://forms.gle/SEU_FORMULARIO"
-};
+```text
+GitHub Pages
+   ↓
+Carrinho
+   ↓
+Melhor Envio (frete)
+   ↓
+D1 salva o pedido como pending
+   ↓
+InfinitePay
+   ↓
+Webhook + payment_check
+   ↓
+D1 marca como paid
+   ↓
+E-mail SMTP de nova venda
+   ↓
+pedido.html mostra a confirmação
 ```
 
-### 2. Seus produtos
-No bloco `PRODUTOS`, edite cada peça. O importante é `olx` (link do anúncio para pagamento com cartão):
-```js
-{ nome:"Gatinho Silly", preco:"R$ 89,90", desc:"...", img:"img/gatinho.jpg", olx:"https://olx.com.br/seu-anuncio" },
+A geração automática da etiqueta ainda não está habilitada, mas os dados necessários já ficam salvos no D1 para a próxima etapa.
+
+---
+
+## 1. O que você precisa ter
+
+- Node.js 18+;
+- conta gratuita na Cloudflare;
+- token do Melhor Envio de **produção**;
+- sua InfiniteTag da InfinitePay;
+- seu e-mail SMTP já usado em testes.
+
+O envio de e-mail **não usa Resend**. O Worker envia diretamente pelo seu servidor SMTP. Não é `smtplib` porque o Worker roda JavaScript, mas usa a mesma conta SMTP e a mesma senha de app que você já usa no Python.
+
+Para Gmail, normalmente:
+
+```text
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURITY=implicit
 ```
-- `img:""` → mostra a gatinha como capa. Para usar foto, coloque o arquivo na pasta `img/` e aponte o caminho (ex.: `img/snorlax.jpg`).
-- Pode adicionar ou remover quantos produtos quiser — é só copiar/colar as linhas.
 
-> 💡 Enquanto um link estiver vazio ou com `COLE_AQUI`, o botão mostra um aviso fofo ("Esse link ainda está sendo preparado 🧶") em vez de levar a uma página quebrada. Assim dá pra publicar antes de ter tudo pronto.
+Se seu provedor usa porta 587, use:
 
----
+```text
+SMTP_PORT=587
+SMTP_SECURITY=starttls
+```
 
-## 📷 Fotos (opcional, mas deixa bem mais profissional)
-
-Crie uma pasta `img/` ao lado do `index.html` e adicione suas fotos. Depois, no `index.html`, procure pelos comentários `★ Troque por...` e substitua o desenho da gatinha por uma foto real:
-
-| Onde | Procure no código | Troque por |
-|---|---|---|
-| Foto da Lili | `★ Troque o bloco abaixo por uma foto real` | `<img src="img/lili.jpg" alt="Lili, a gata Silly">` |
-| Foto da Anna | `★ Troque por:  <img src="img/anna.jpg"...` | `<img src="img/anna.jpg" alt="Anna">` |
-| Foto da Samara | `★ Troque por:  <img src="img/samara.jpg"...` | `<img src="img/samara.jpg" alt="Samara">` |
-| Fotos dos produtos | bloco `PRODUTOS` | preencha o campo `img` |
-
-**Prévia do link no Instagram/WhatsApp:** adicione um `og-image.png` (1200×630, pode ser o logo) na raiz e ajuste a URL na tag `og:image` (lá no topo do arquivo).
+Não use porta 25.
 
 ---
 
-## 🚀 Como publicar no GitHub Pages
+## 2. Configurar o Worker
 
-1. Crie um repositório no GitHub (ex.: `silly-cat`).
-2. Envie os arquivos para o repositório:
-   - `index.html` (e a pasta `img/`, se tiver).
-3. No repositório, vá em **Settings → Pages**.
-4. Em **Source**, escolha **Deploy from a branch**.
-5. Selecione a branch **main** e a pasta **/(root)** → **Save**.
-6. Aguarde ~1 minuto. O site fica no ar em:
-   `https://SEU-USUARIO.github.io/silly-cat/`
+Abra um terminal dentro da pasta:
 
-> Quer um endereço próprio (ex.: `sillycatcroche.com.br`)? Dá pra ligar um domínio depois em **Settings → Pages → Custom domain**.
-
-Para subir pelo terminal:
 ```bash
-git init
-git add .
-git commit -m "Site Silly Cat Crochê"
-git branch -M main
-git remote add origin https://github.com/SEU-USUARIO/silly-cat.git
-git push -u origin main
+cd worker
+npm install
+npx wrangler login
+```
+
+Crie o banco:
+
+```bash
+npx wrangler d1 create silly-cat-orders
+```
+
+Copie o `database_id` retornado e substitua o UUID zerado em:
+
+```text
+worker/wrangler.jsonc
+```
+
+Depois edite nesse mesmo arquivo:
+
+```text
+INFINITEPAY_HANDLE
+MELHOR_ENVIO_FROM_POSTAL_CODE
+MELHOR_ENVIO_USER_AGENT
+SMTP_HOST
+SMTP_PORT
+SMTP_SECURITY
+SMTP_USER
+SMTP_FROM
+SALE_NOTIFICATION_TO
+```
+
+Exemplo de InfiniteTag:
+
+```text
+$viniciusfr  →  viniciusfr
+```
+
+Exemplo de User-Agent do Melhor Envio:
+
+```text
+Silly Cat Croche (seu-email@exemplo.com)
 ```
 
 ---
 
-## 🛒 Como funcionam as compras
+## 3. Criar as tabelas no D1
 
-- **PIX** → o botão abre seu Google Forms. O cliente escolhe a peça, preenche os dados e você confirma + envia a chave PIX.
-- **Cartão** → o botão leva ao anúncio da peça na OLX, onde o cliente paga com cartão (com opção de parcelar).
-- **Catálogo completo** → os botões "Catálogo na Moira" levam ao seu perfil atual: `app.moirabr.com.br/perfil/silly-cat`.
+Ainda dentro de `worker/`:
+
+```bash
+npx wrangler d1 execute silly-cat-orders --remote --file=./schema.sql
+```
+
+Isso cria:
+
+- `orders`;
+- `order_items`.
+
+O pedido guarda cliente, CPF, endereço, produtos, frete escolhido, total, status do pagamento e os campos que serão usados futuramente para a etiqueta.
 
 ---
 
-## 🎨 Identidade visual usada
+## 4. Fazer o primeiro deploy
 
-- **Cores:** vermelho `#E23B30`, rosa `#F6A9C6`, azul `#AECCEE`, amarelo `#F4C748`, creme `#FBF1E1`.
-- **Fontes:** *Special Elite* (títulos tipo máquina de escrever), *Quicksand* (texto), *Pacifico* (frases). Carregadas pelo Google Fonts.
-- **Marca registrada do site:** títulos em "azulejos" estilo Scrabble + a gatinha em SVG sobre os raios de sol (igual ao logo).
+```bash
+npx wrangler deploy
+```
 
-Tudo é responsivo (funciona bem no celular), tem foco visível para teclado e respeita "reduzir movimento" do sistema.
+A Cloudflare retornará uma URL parecida com:
+
+```text
+https://silly-cat-api.SEUSUBDOMINIO.workers.dev
+```
+
+Guarde essa URL.
+
+Não é necessário mudar o domínio da GoDaddy nem mover o GitHub Pages para a Cloudflare nesta etapa.
+
+---
+
+## 5. Configurar os segredos
+
+Ainda em `worker/`:
+
+```bash
+npx wrangler secret put MELHOR_ENVIO_TOKEN
+```
+
+Cole o token de produção do Melhor Envio.
+
+Depois:
+
+```bash
+npx wrangler secret put SMTP_PASSWORD
+```
+
+Cole a senha SMTP/senha de app do e-mail.
+
+Esses valores ficam na Cloudflare e **não entram no GitHub**.
+
+Para Gmail, use a senha de app, não a senha normal da conta.
+
+---
+
+## 6. Apontar o site para o Worker
+
+Abra:
+
+```text
+ecommerce-config.js
+```
+
+Troque:
+
+```javascript
+"https://COLE-AQUI-SEU-WORKER.workers.dev"
+```
+
+pela URL retornada no deploy.
+
+Depois faça commit/push normalmente no repositório do site.
+
+Essa troca é feita uma única vez. Os links dos produtos deixam de depender do Mercado Livre.
+
+---
+
+## 7. Verificar se a API está pronta
+
+Abra:
+
+```text
+https://SEU-WORKER.workers.dev/health
+```
+
+O esperado é algo semelhante a:
+
+```json
+{
+  "ok": true,
+  "database": true,
+  "melhor_envio_env": "production",
+  "infinitepay_configured": true,
+  "melhor_envio_configured": true,
+  "smtp_configured": true
+}
+```
+
+---
+
+## 8. Teste de venda
+
+No site publicado:
+
+1. adicione um produto ao carrinho;
+2. calcule o frete;
+3. escolha a transportadora;
+4. preencha nome, e-mail, telefone, CPF e endereço;
+5. abra o checkout InfinitePay;
+6. finalize uma venda real de teste.
+
+Antes de abrir a InfinitePay, o pedido já será salvo no D1 como:
+
+```text
+pending
+```
+
+Quando a InfinitePay chamar o webhook, o Worker valida:
+
+```text
+order_nsu existe
++
+valor recebido = total do pedido
++
+payment_check confirma paid=true
+```
+
+Somente depois o pedido passa para:
+
+```text
+paid
+```
+
+O webhook é configurado automaticamente pelo Worker. Não é necessário cadastrar a URL manualmente na InfinitePay.
+
+O comprador é redirecionado para:
+
+```text
+https://www.sillycatcroche.shop/pedido.html
+```
+
+A página consulta a API e mostra a confirmação do pagamento.
+
+---
+
+## 9. E-mail de nova venda
+
+Quando o pedido vira `paid`, o Worker envia para `SALE_NOTIFICATION_TO` um e-mail contendo:
+
+- número do pedido;
+- produtos;
+- total;
+- forma de pagamento;
+- transportadora e serviço;
+- prazo estimado;
+- nome;
+- CPF;
+- telefone;
+- e-mail;
+- endereço completo;
+- link do comprovante, quando disponível.
+
+O disparo é feito diretamente por SMTP usando a conta configurada em `wrangler.jsonc` + `SMTP_PASSWORD` salvo como secret.
+
+---
+
+## 10. Consultar pedidos no D1
+
+Exemplo:
+
+```bash
+npx wrangler d1 execute silly-cat-orders --remote --command="SELECT order_nsu,status,total_cents,created_at FROM orders ORDER BY created_at DESC LIMIT 10"
+```
+
+Para ver um pedido específico:
+
+```bash
+npx wrangler d1 execute silly-cat-orders --remote --command="SELECT * FROM orders WHERE order_nsu='SC-...'"
+```
+
+---
+
+## 11. Teste local opcional
+
+Copie:
+
+```text
+worker/.dev.vars.example
+```
+
+para:
+
+```text
+worker/.dev.vars
+```
+
+Preencha pelo menos:
+
+```text
+MELHOR_ENVIO_TOKEN
+SMTP_PASSWORD
+```
+
+Crie o banco local:
+
+```bash
+cd worker
+npx wrangler d1 execute silly-cat-orders --local --file=./schema.sql
+```
+
+Depois execute `iniciar-local.bat` na raiz.
+
+Frontend:
+
+```text
+http://127.0.0.1:8000
+```
+
+Worker local:
+
+```text
+http://127.0.0.1:8787
+```
+
+---
+
+## 12. Próxima etapa: etiqueta automática
+
+O banco já guarda os campos necessários para implementar:
+
+```text
+pedido pago
+   ↓
+Melhor Envio /me/cart
+   ↓
+comprar frete
+   ↓
+gerar etiqueta
+   ↓
+salvar ID da etiqueta no pedido
+```
+
+Os campos `melhor_envio_shipment_id` e `label_status` já existem no D1 para essa próxima implementação.
+
+---
+
+## Segurança
+
+Nunca coloque no frontend ou no GitHub:
+
+- `MELHOR_ENVIO_TOKEN`;
+- `SMTP_PASSWORD`;
+- senhas de e-mail.
+
+O Worker também não confia no preço enviado pelo navegador: ele relê `catalogo.json`, recalcula o frete no Melhor Envio e só então cria o checkout InfinitePay.

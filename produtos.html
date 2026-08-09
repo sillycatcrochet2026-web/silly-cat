@@ -67,10 +67,13 @@
         <li><a href="contato.html" data-nav="contato">Contato</a></li>
       </ul>
     </nav>
-    <div class="header-icons" aria-hidden="true">
-      <span class="header-icon">☻</span>
-      <span class="header-icon">♡</span>
-      <span class="header-icon">🛒</span>
+    <div class="header-icons">
+      <span class="header-icon" aria-hidden="true">☻</span>
+      <span class="header-icon" aria-hidden="true">♡</span>
+      <button class="header-icon cart-header-button" type="button" data-open-cart aria-label="Abrir carrinho">
+        <span aria-hidden="true">🛒</span>
+        <span class="cart-count" data-cart-count hidden>0</span>
+      </button>
     </div>
   </div>
 </header>
@@ -82,16 +85,16 @@
     <div class="wrap reveal">
       <span class="kicker">Nossa lojinha</span>
       <h1 class="page-title">Produtos</h1>
-      <p>Escolha sua peça favorita e veja as opções de envio em cada produto.</p>
+      <p>Escolha suas peças favoritas, adicione ao carrinho e calcule o frete para o seu CEP.</p>
     </div>
   </section>
   <section class="page-content">
     <div class="wrap">
       <div class="product-grid" data-products="all"></div>
       <div class="catalog-callout reveal">
-        <h2>Quer ver o catálogo completo?</h2>
-        <p>Confira mais peças, disponibilidade e novidades no nosso perfil da Moira.</p>
-        <p style="margin-top:16px"><a class="soft-btn" href="https://app.moirabr.com.br/perfil/silly-cat/" target="_blank" rel="noopener">Abrir catálogo ↗</a></p>
+        <h2>Feito à mão, comprado por aqui ♡</h2>
+        <p>O carrinho calcula o frete pelo Melhor Envio e o pagamento é finalizado com segurança pela InfinitePay.</p>
+        <p style="margin-top:16px"><button class="soft-btn" type="button" data-open-cart>Abrir carrinho</button></p>
       </div>
     </div>
   </section>
@@ -107,6 +110,7 @@
   <p style="margin-top:10px;font-size:.88rem;opacity:.84">© <span id="year"></span> Silly Cat Crochê</p>
 </footer>
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="ecommerce-config.js"></script>
 <script src="app.js"></script>
 
 </body>
