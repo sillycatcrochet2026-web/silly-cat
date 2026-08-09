@@ -2,6 +2,7 @@ import { connect } from "cloudflare:sockets";
 import bundledCatalog from "../../catalogo.json" with { type: "json" };
 
 let inventorySchemaReady = false;
+let shippingSchemaReady = false;
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 
@@ -33,6 +34,9 @@ async function route(request, env, ctx) {
       infinitepay_configured: configured(env.INFINITEPAY_HANDLE),
       melhor_envio_configured: configured(env.MELHOR_ENVIO_TOKEN) && digits(env.MELHOR_ENVIO_FROM_POSTAL_CODE).length === 8,
       melhor_envio_allowed_carriers: allowedCarrierNames(env),
+      melhor_envio_auto_label: autoLabelEnabled(env),
+      melhor_envio_sender_configured: senderConfigured(env),
+      melhor_envio_label_print_mode: labelPrintMode(env),
       smtp_configured: smtpConfigured(env),
     });
   }
@@ -52,7 +56,11 @@ async function route(request, env, ctx) {
     const catalog = await loadEffectiveCatalog(env);
     const cart = resolveCart(body.items, catalog);
     const result = await quoteShipping(env, cart, body.postalCode);
-    return json(request, env, 200, { subtotal_centavos: cartSubtotal(cart), ...result });
+    return json(request, env, 200, {
+      subtotal_centavos: cartSubtotal(cart),
+      ...result,
+      options: result.options.map(publicShippingOption),
+    });
   }
 
   if (request.method === "POST" && path === "/api/checkout") {
@@ -88,7 +96,7 @@ async function route(request, env, ctx) {
         subtotal_centavos: subtotal,
         frete_centavos: shipping.preco_centavos,
         total_centavos: total,
-        frete: shipping,
+        frete: publicShippingOption(shipping),
       });
     } catch (error) {
       await env.DB.prepare("UPDATE orders SET status = 'checkout_error', updated_at = ? WHERE order_nsu = ?")
@@ -115,9 +123,9 @@ async function route(request, env, ctx) {
         return json(request, env, 200, publicOrderStatus(existing));
       }
       const verified = await verifyAndRecordPayment(env, identifiers);
-      if (verified.paid) ctx.waitUntil(maybeSendSaleNotification(env, identifiers.orderNsu));
-    } else if (!existing.notification_sent_at) {
-      ctx.waitUntil(maybeSendSaleNotification(env, identifiers.orderNsu));
+      if (verified.paid) ctx.waitUntil(runPostPaymentAutomation(env, identifiers.orderNsu));
+    } else {
+      ctx.waitUntil(runPostPaymentAutomation(env, identifiers.orderNsu));
     }
 
     const updated = await getOrder(env, identifiers.orderNsu);
@@ -129,6 +137,22 @@ async function route(request, env, ctx) {
     const order = await getOrder(env, decodeURIComponent(statusMatch[1]));
     if (!order) throw httpError(404, "Pedido não encontrado.");
     return json(request, env, 200, publicOrderStatus(order));
+  }
+
+  const adminLabelMatch = path.match(/^\/api\/admin\/orders\/([^/]+)\/label$/);
+  if (adminLabelMatch && ["GET", "POST"].includes(request.method)) {
+    requireAdmin(request, env);
+    const orderNsu = decodeURIComponent(adminLabelMatch[1]);
+    const order = await getOrder(env, orderNsu);
+    if (!order) throw httpError(404, "Pedido não encontrado.");
+
+    if (request.method === "POST") {
+      if (order.status !== "paid") throw httpError(409, "A etiqueta só pode ser gerada após o pagamento confirmado.");
+      await maybeCreateShippingLabel(env, orderNsu, { force: true });
+    }
+
+    const state = await getShippingLabelState(env, orderNsu);
+    return json(request, env, 200, publicShippingLabelState(state));
   }
 
   if (request.method === "POST" && path === "/api/infinitepay/webhook") {
@@ -163,7 +187,7 @@ async function route(request, env, ctx) {
             slug,
             receiptUrl: safeHttpUrl(event.receipt_url),
           });
-          if (verified.paid) await maybeSendSaleNotification(env, orderNsu);
+          if (verified.paid) await runPostPaymentAutomation(env, orderNsu);
         } catch (error) {
           console.error("[InfinitePay webhook verification]", error?.message || error);
         }
@@ -446,6 +470,7 @@ async function quoteShipping(env, cart, destinationPostalCode) {
       transportadora: String(item.company?.name || "Transportadora"),
       preco_centavos: moneyToCents(item.custom_price ?? item.price),
       prazo_dias: Number(item.custom_delivery_time ?? item.delivery_time ?? 0) || null,
+      packages: normalizeQuotePackages(item.packages),
     }))
     .filter((item) => Number.isInteger(item.preco_centavos) && item.preco_centavos >= 0)
     .sort((a, b) => a.preco_centavos - b.preco_centavos);
@@ -465,6 +490,7 @@ async function quoteShipping(env, cart, destinationPostalCode) {
 }
 
 async function savePendingOrder(env, data) {
+  await ensureShippingSchema(env);
   const created = nowIso();
   const orderStatement = env.DB.prepare(`
     INSERT INTO orders (
@@ -488,7 +514,17 @@ async function savePendingOrder(env, data) {
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(data.orderNsu, product.id, product.nome, quantity, Number(product.preco_centavos), JSON.stringify(product.frete || {})));
 
-  await env.DB.batch([orderStatement, ...itemStatements]);
+  const labelStatement = env.DB.prepare(`
+    INSERT INTO shipping_labels (
+      order_nsu, status, auto_eligible, quote_json, created_at, updated_at
+    ) VALUES (?, 'waiting_payment', 1, ?, ?, ?)
+    ON CONFLICT(order_nsu) DO UPDATE SET
+      quote_json = excluded.quote_json,
+      auto_eligible = 1,
+      updated_at = excluded.updated_at
+  `).bind(data.orderNsu, JSON.stringify(data.shipping), created, created);
+
+  await env.DB.batch([orderStatement, ...itemStatements, labelStatement]);
 }
 
 async function createInfinitePayCheckout(env, { orderNsu, cart, shipping, customer, address, apiOrigin }) {
@@ -612,6 +648,511 @@ function publicOrderStatus(order) {
   };
 }
 
+
+async function ensureShippingSchema(env) {
+  if (shippingSchemaReady) return;
+  await env.DB.batch([
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS shipping_labels (
+        order_nsu TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'waiting_payment',
+        auto_eligible INTEGER NOT NULL DEFAULT 0,
+        quote_json TEXT,
+        shipments_json TEXT,
+        print_urls_json TEXT,
+        claim_at TEXT,
+        cart_created_at TEXT,
+        purchased_at TEXT,
+        generated_at TEXT,
+        ready_at TEXT,
+        error TEXT,
+        raw_checkout_json TEXT,
+        raw_generate_json TEXT,
+        raw_print_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (order_nsu) REFERENCES orders(order_nsu) ON DELETE CASCADE
+      )
+    `),
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_shipping_labels_status ON shipping_labels(status)`),
+  ]);
+  shippingSchemaReady = true;
+}
+
+function autoLabelEnabled(env) {
+  return /^(1|true|yes|on)$/i.test(String(env.MELHOR_ENVIO_AUTO_LABEL || "false").trim());
+}
+
+function labelPrintMode(env) {
+  return String(env.MELHOR_ENVIO_LABEL_PRINT_MODE || "private").toLowerCase() === "public" ? "public" : "private";
+}
+
+function shipmentMode(env) {
+  return String(env.MELHOR_ENVIO_SHIPMENT_MODE || "").trim().toLowerCase();
+}
+
+function senderConfigured(env) {
+  if (!configured(env.MELHOR_ENVIO_SENDER_JSON)) return false;
+  try {
+    const sender = JSON.parse(String(env.MELHOR_ENVIO_SENDER_JSON));
+    return Boolean(sender?.name && sender?.email && sender?.phone && sender?.document && sender?.address && sender?.number && sender?.district && sender?.city && sender?.postal_code && sender?.state_abbr);
+  } catch {
+    return false;
+  }
+}
+
+function parseSender(env) {
+  requireConfig("MELHOR_ENVIO_SENDER_JSON", env.MELHOR_ENVIO_SENDER_JSON);
+  let raw;
+  try { raw = JSON.parse(String(env.MELHOR_ENVIO_SENDER_JSON)); }
+  catch { throw httpError(503, "MELHOR_ENVIO_SENDER_JSON não contém um JSON válido."); }
+
+  const sender = {
+    name: clean(raw.name, 120),
+    email: clean(raw.email, 160).toLowerCase(),
+    phone: digits(raw.phone),
+    document: digits(raw.document),
+    address: clean(raw.address, 180),
+    complement: clean(raw.complement, 120),
+    number: clean(raw.number, 30),
+    district: clean(raw.district, 120),
+    city: clean(raw.city, 120),
+    postal_code: digits(raw.postal_code),
+    state_abbr: clean(raw.state_abbr, 2).toUpperCase(),
+    country_id: "BR",
+  };
+
+  if (!sender.name || !/^\S+@\S+\.\S+$/.test(sender.email)) throw httpError(503, "Nome/e-mail do remetente inválidos em MELHOR_ENVIO_SENDER_JSON.");
+  if (sender.phone.length < 10 || sender.phone.length > 13) throw httpError(503, "Telefone do remetente inválido em MELHOR_ENVIO_SENDER_JSON.");
+  if (!isValidCpf(sender.document)) throw httpError(503, "CPF do remetente inválido em MELHOR_ENVIO_SENDER_JSON.");
+  if (sender.postal_code.length !== 8 || !sender.address || !sender.number || !sender.district || !sender.city || !/^[A-Z]{2}$/.test(sender.state_abbr)) {
+    throw httpError(503, "Endereço do remetente incompleto em MELHOR_ENVIO_SENDER_JSON.");
+  }
+  return sender;
+}
+
+function validateAutomaticShipmentMode(env) {
+  const mode = shipmentMode(env);
+  if (mode !== "non_commercial") {
+    throw httpError(503, "Defina MELHOR_ENVIO_SHIPMENT_MODE=non_commercial somente se a remessa puder legalmente usar Declaração de Conteúdo. Envios comerciais exigem NF-e e não são automatizados por este patch.");
+  }
+}
+
+function melhorEnvioBase(env) {
+  return String(env.MELHOR_ENVIO_ENV || "production").toLowerCase() === "sandbox"
+    ? "https://sandbox.melhorenvio.com.br"
+    : "https://melhorenvio.com.br";
+}
+
+function melhorEnvioHeaders(env) {
+  requireConfig("MELHOR_ENVIO_TOKEN", env.MELHOR_ENVIO_TOKEN);
+  return {
+    Authorization: `Bearer ${env.MELHOR_ENVIO_TOKEN}`,
+    "User-Agent": clean(env.MELHOR_ENVIO_USER_AGENT, 180) || "Silly Cat Croche (contato@sillycatcroche.shop)",
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+}
+
+async function melhorEnvioJson(env, path, options = {}) {
+  return fetchJson(`${melhorEnvioBase(env)}${path}`, {
+    ...options,
+    headers: { ...melhorEnvioHeaders(env), ...(options.headers || {}) },
+  });
+}
+
+async function getShippingLabelState(env, orderNsu) {
+  await ensureShippingSchema(env);
+  return env.DB.prepare("SELECT * FROM shipping_labels WHERE order_nsu = ? LIMIT 1").bind(orderNsu).first();
+}
+
+async function ensureShippingLabelRow(env, orderNsu) {
+  await ensureShippingSchema(env);
+  const timestamp = nowIso();
+  await env.DB.prepare(`
+    INSERT INTO shipping_labels (order_nsu, status, auto_eligible, created_at, updated_at)
+    VALUES (?, 'waiting_payment', 0, ?, ?)
+    ON CONFLICT(order_nsu) DO NOTHING
+  `).bind(orderNsu, timestamp, timestamp).run();
+  return getShippingLabelState(env, orderNsu);
+}
+
+function publicShippingLabelState(state) {
+  if (!state) return { status: "not_started", shipment_ids: [], print_urls: [], error: null };
+  return {
+    order_nsu: state.order_nsu,
+    status: state.status,
+    shipment_ids: parseJsonArray(state.shipments_json).map((x) => x?.id).filter(Boolean),
+    print_urls: parseJsonArray(state.print_urls_json).filter((x) => typeof x === "string"),
+    purchased_at: state.purchased_at || null,
+    generated_at: state.generated_at || null,
+    ready_at: state.ready_at || null,
+    error: state.error || null,
+  };
+}
+
+async function runPostPaymentAutomation(env, orderNsu) {
+  let labelResult = null;
+  try {
+    labelResult = await maybeCreateShippingLabel(env, orderNsu, { force: false });
+    if (labelResult?.busy) return;
+  } catch (error) {
+    console.error("[Melhor Envio etiqueta]", error?.message || error);
+  }
+  await maybeSendSaleNotification(env, orderNsu);
+}
+
+async function maybeCreateShippingLabel(env, orderNsu, { force = false } = {}) {
+  const order = await getOrder(env, orderNsu);
+  if (!order) throw httpError(404, "Pedido não encontrado.");
+  if (order.status !== "paid") return { skipped: "not_paid" };
+
+  let state = await ensureShippingLabelRow(env, orderNsu);
+  if (state.status === "ready") return publicShippingLabelState(state);
+  if (!force && !autoLabelEnabled(env)) return { skipped: "disabled" };
+  if (!force && !Number(state.auto_eligible || 0)) return { skipped: "legacy_order" };
+
+  const claimedAt = nowIso();
+  const staleClaimBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const claim = await env.DB.prepare(`
+    UPDATE shipping_labels
+    SET claim_at = ?, error = NULL, updated_at = ?
+    WHERE order_nsu = ? AND status != 'ready'
+      AND (claim_at IS NULL OR claim_at < ?)
+  `).bind(claimedAt, claimedAt, orderNsu, staleClaimBefore).run();
+
+  if (!Number(claim?.meta?.changes || 0)) return { busy: true, ...publicShippingLabelState(await getShippingLabelState(env, orderNsu)) };
+
+  try {
+    validateAutomaticShipmentMode(env);
+    const sender = parseSender(env); // valida antes de qualquer cobrança
+    const quoteOrigin = digits(env.MELHOR_ENVIO_FROM_POSTAL_CODE);
+    if (quoteOrigin && sender.postal_code !== quoteOrigin) {
+      throw httpError(503, "O CEP do remetente em MELHOR_ENVIO_SENDER_JSON precisa ser igual a MELHOR_ENVIO_FROM_POSTAL_CODE para que a cotação e a etiqueta usem a mesma origem.");
+    }
+
+    state = await getShippingLabelState(env, orderNsu);
+    let quote = parseJsonObject(state.quote_json);
+    if (!Array.isArray(quote?.packages) || !quote.packages.length) {
+      quote = await rebuildShippingQuoteForOrder(env, order);
+      await updateShippingLabel(env, orderNsu, { quote_json: JSON.stringify(quote), status: "quoted" });
+    }
+
+    state = await getShippingLabelState(env, orderNsu);
+    let shipmentRecords = parseJsonArray(state.shipments_json);
+    shipmentRecords = await createMelhorEnvioCartEntries(env, order, quote, shipmentRecords);
+
+    const shipmentIds = shipmentRecords.map((record) => record.id).filter(Boolean);
+    if (!shipmentIds.length) throw httpError(502, "O Melhor Envio não retornou IDs de etiquetas no carrinho.");
+
+    state = await getShippingLabelState(env, orderNsu);
+    if (!state.purchased_at) {
+      const checkoutResult = await melhorEnvioJson(env, "/api/v2/me/shipment/checkout", {
+        method: "POST",
+        body: JSON.stringify({ orders: shipmentIds }),
+      });
+      const timestamp = nowIso();
+      await updateShippingLabel(env, orderNsu, {
+        status: "purchased",
+        purchased_at: timestamp,
+        raw_checkout_json: JSON.stringify(checkoutResult),
+      });
+    }
+
+    state = await getShippingLabelState(env, orderNsu);
+    if (!state.generated_at) {
+      const generateResult = await melhorEnvioJson(env, "/api/v2/me/shipment/generate", {
+        method: "POST",
+        body: JSON.stringify({ orders: shipmentIds }),
+      });
+      const timestamp = nowIso();
+      await updateShippingLabel(env, orderNsu, {
+        status: "generated",
+        generated_at: timestamp,
+        raw_generate_json: JSON.stringify(generateResult),
+      });
+    }
+
+    state = await getShippingLabelState(env, orderNsu);
+    let printUrls = parseJsonArray(state.print_urls_json).filter((x) => typeof x === "string" && x);
+    if (!printUrls.length) {
+      // A geração é assíncrona no Melhor Envio; um pequeno atraso reduz
+      // respostas prematuras de impressão logo após /shipment/generate.
+      await sleep(1800);
+      let printResult = null;
+      let lastError = null;
+      for (const waitMs of [0, 2200, 4500]) {
+        if (waitMs) await sleep(waitMs);
+        try {
+          printResult = await melhorEnvioJson(env, "/api/v2/me/shipment/print", {
+            method: "POST",
+            body: JSON.stringify({ mode: labelPrintMode(env), orders: shipmentIds }),
+          });
+          const found = collectHttpUrls(printResult);
+          if (found.length) {
+            printUrls = found;
+            break;
+          }
+          lastError = new Error("O Melhor Envio não retornou um link de impressão.");
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (!printUrls.length) throw lastError || httpError(502, "Não foi possível obter o link de impressão da etiqueta.");
+
+      await updateShippingLabel(env, orderNsu, {
+        print_urls_json: JSON.stringify(printUrls),
+        raw_print_json: JSON.stringify(printResult),
+      });
+    }
+
+    const readyAt = nowIso();
+    await updateShippingLabel(env, orderNsu, { status: "ready", ready_at: readyAt, error: null });
+    await env.DB.prepare(`
+      UPDATE orders SET label_status = 'ready', melhor_envio_shipment_id = COALESCE(melhor_envio_shipment_id, ?), updated_at = ?
+      WHERE order_nsu = ?
+    `).bind(shipmentIds[0], readyAt, orderNsu).run();
+
+    return publicShippingLabelState(await getShippingLabelState(env, orderNsu));
+  } catch (error) {
+    const message = String(error?.message || error).slice(0, 800);
+    await updateShippingLabel(env, orderNsu, { status: "error", error: message });
+    await env.DB.prepare("UPDATE orders SET label_status = 'error', updated_at = ? WHERE order_nsu = ?")
+      .bind(nowIso(), orderNsu).run();
+    throw error;
+  } finally {
+    await env.DB.prepare("UPDATE shipping_labels SET claim_at = NULL, updated_at = ? WHERE order_nsu = ?")
+      .bind(nowIso(), orderNsu).run().catch(() => {});
+  }
+}
+
+async function rebuildShippingQuoteForOrder(env, order) {
+  const items = await getOrderItems(env, order.order_nsu);
+  if (!items.length) throw httpError(409, "O pedido não possui itens para gerar a etiqueta.");
+  const cart = items.map((item) => {
+    let frete = {};
+    try { frete = JSON.parse(item.shipping_json || "{}"); } catch {}
+    return {
+      product: {
+        id: item.product_id,
+        nome: item.product_name,
+        preco_centavos: Number(item.unit_price_cents),
+        estoque: Number(item.quantity),
+        frete,
+      },
+      quantity: Number(item.quantity),
+    };
+  });
+  const quote = await quoteShipping(env, cart, order.postal_code);
+  const selected = quote.options.find((option) => String(option.id) === String(order.shipping_service_id));
+  if (!selected) throw httpError(409, "O serviço de frete original não está mais disponível para gerar a etiqueta.");
+  return selected;
+}
+
+async function createMelhorEnvioCartEntries(env, order, quote, existingRecords = []) {
+  const packages = Array.isArray(quote?.packages) ? quote.packages : [];
+  if (!packages.length) throw httpError(409, "A cotação do Melhor Envio não retornou os volumes necessários para gerar a etiqueta.");
+
+  const items = await getOrderItems(env, order.order_nsu);
+  const requests = buildShipmentRequests(order, quote, items, packages);
+  const records = [...existingRecords];
+
+  for (const request of requests) {
+    if (records.some((record) => record?.key === request.key && record?.id)) continue;
+    const result = await melhorEnvioJson(env, "/api/v2/me/cart", {
+      method: "POST",
+      body: JSON.stringify(prepareShipmentPayload(env, request.payload)),
+    });
+    const id = extractShipmentId(result);
+    if (!id) throw httpError(502, "O Melhor Envio não retornou o ID do envio adicionado ao carrinho.");
+    records.push({ key: request.key, id, created_at: nowIso() });
+    await updateShippingLabel(env, order.order_nsu, {
+      status: "cart_created",
+      shipments_json: JSON.stringify(records),
+      cart_created_at: nowIso(),
+    });
+    await env.DB.prepare(`
+      UPDATE orders SET melhor_envio_shipment_id = COALESCE(melhor_envio_shipment_id, ?), label_status = 'cart_created', updated_at = ?
+      WHERE order_nsu = ?
+    `).bind(id, nowIso(), order.order_nsu).run();
+  }
+  return records;
+}
+
+function buildShipmentRequests(order, quote, items, packages) {
+  const service = Number(order.shipping_service_id);
+  if (!Number.isInteger(service)) throw httpError(409, "ID do serviço do Melhor Envio inválido no pedido.");
+  const carrierKey = normalizeCarrierKey(order.shipping_company);
+  const mustSplit = packages.length > 1 && (carrierKey === "correios" || String(service) === "27");
+
+  if (mustSplit) {
+    return packages.map((pkg, index) => ({
+      key: `package-${index}`,
+      payloadFactory: true,
+      packageIndexes: [index],
+      package: pkg,
+    })).map((entry) => ({
+      key: entry.key,
+      payload: buildShipmentPayloadFromParts(order, service, [entry.package], productsForPackage(items, entry.package)),
+    }));
+  }
+
+  return [{
+    key: "all",
+    payload: buildShipmentPayloadFromParts(order, service, packages, items),
+  }];
+}
+
+function buildShipmentPayloadFromParts(order, service, packages, items) {
+  // O remetente é injetado mais adiante em prepareShipmentPayload, porque é
+  // armazenado como secret do Worker e não no banco.
+  const productList = items.map((item) => ({
+    name: clean(item.product_name, 120),
+    quantity: String(Math.max(1, Number(item.quantity || 1))),
+    unitary_value: Number((Number(item.unit_price_cents) / 100).toFixed(2)),
+  }));
+  const insuranceValue = productList.reduce((sum, item) => sum + Number(item.unitary_value) * Number(item.quantity), 0);
+
+  return {
+    service,
+    __needs_sender: true,
+    to: {
+      name: order.customer_name,
+      email: order.customer_email,
+      phone: order.customer_phone,
+      document: order.customer_document,
+      address: order.street,
+      complement: order.complement || "",
+      number: order.number,
+      district: order.neighborhood,
+      city: order.city,
+      postal_code: order.postal_code,
+      country_id: "BR",
+      state_abbr: order.state,
+    },
+    products: productList,
+    volumes: packages.map((pkg) => ({
+      height: Number(pkg.height),
+      width: Number(pkg.width),
+      length: Number(pkg.length),
+      weight: Number(pkg.weight),
+    })),
+    options: {
+      platform: "Silly Cat Croche",
+      reminder: `Pedido ${order.order_nsu}`,
+      insurance_value: Number(insuranceValue.toFixed(2)),
+      receipt: false,
+      own_hand: false,
+      reverse: false,
+      tags: [{
+        tag: order.order_nsu,
+        url: null,
+      }],
+    },
+  };
+}
+
+function productsForPackage(items, pkg) {
+  const packageProducts = Array.isArray(pkg?.products) ? pkg.products : [];
+  if (!packageProducts.length) return items;
+  const quantities = new Map(packageProducts.map((item) => [String(item.id), Math.max(1, Number(item.quantity || 1))]));
+  const selected = items
+    .filter((item) => quantities.has(String(item.product_id)))
+    .map((item) => ({ ...item, quantity: quantities.get(String(item.product_id)) }));
+  return selected.length ? selected : items;
+}
+
+function prepareShipmentPayload(env, payload) {
+  const prepared = structuredClone(payload);
+  delete prepared.__needs_sender;
+  prepared.from = parseSender(env);
+  const storeUrl = String(env.STORE_URL || env.STORE_ORIGIN || "https://www.sillycatcroche.shop").replace(/\/$/, "");
+  if (Array.isArray(prepared.options?.tags)) {
+    prepared.options.tags = prepared.options.tags.map((tag) => ({ ...tag, url: `${storeUrl}/pedido.html?order_nsu=${encodeURIComponent(tag.tag)}` }));
+  }
+  return prepared;
+}
+
+async function updateShippingLabel(env, orderNsu, fields) {
+  const allowed = new Set([
+    "status", "quote_json", "shipments_json", "print_urls_json", "claim_at", "cart_created_at",
+    "purchased_at", "generated_at", "ready_at", "error", "raw_checkout_json", "raw_generate_json", "raw_print_json",
+  ]);
+  const entries = Object.entries(fields).filter(([key]) => allowed.has(key));
+  if (!entries.length) return;
+  entries.push(["updated_at", nowIso()]);
+  const setSql = entries.map(([key]) => `${key} = ?`).join(", ");
+  await env.DB.prepare(`UPDATE shipping_labels SET ${setSql} WHERE order_nsu = ?`)
+    .bind(...entries.map(([, value]) => value ?? null), orderNsu).run();
+}
+
+function normalizeQuotePackages(packages) {
+  if (!Array.isArray(packages)) return [];
+  return packages.map((pkg) => ({
+    height: Number(pkg?.dimensions?.height ?? pkg?.height),
+    width: Number(pkg?.dimensions?.width ?? pkg?.width),
+    length: Number(pkg?.dimensions?.length ?? pkg?.length),
+    weight: Number(pkg?.weight),
+    insurance_value: Number(pkg?.insurance_value || 0),
+    products: Array.isArray(pkg?.products)
+      ? pkg.products.map((item) => ({ id: String(item?.id || ""), quantity: Number(item?.quantity || 1) })).filter((item) => item.id)
+      : [],
+  })).filter((pkg) => pkg.height > 0 && pkg.width > 0 && pkg.length > 0 && pkg.weight > 0);
+}
+
+function publicShippingOption(option) {
+  const { packages, ...safe } = option;
+  return safe;
+}
+
+function extractShipmentId(data) {
+  const candidates = [data?.id, data?.order?.id, data?.data?.id, data?.uuid];
+  return candidates.find((value) => typeof value === "string" && value.trim())?.trim() || null;
+}
+
+function collectHttpUrls(value, found = new Set()) {
+  if (typeof value === "string") {
+    if (/^https?:\/\//i.test(value)) found.add(value);
+    return [...found];
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectHttpUrls(item, found);
+    return [...found];
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) collectHttpUrls(item, found);
+  }
+  return [...found];
+}
+
+function parseJsonArray(value) {
+  try { const parsed = JSON.parse(value || "[]"); return Array.isArray(parsed) ? parsed : []; }
+  catch { return []; }
+}
+
+function parseJsonObject(value) {
+  try { const parsed = JSON.parse(value || "null"); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null; }
+  catch { return null; }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function requireAdmin(request, env) {
+  requireConfig("ADMIN_API_KEY", env.ADMIN_API_KEY);
+  const provided = String(request.headers.get("X-Admin-Key") || "");
+  const expected = String(env.ADMIN_API_KEY || "");
+  if (!constantTimeEqual(provided, expected)) throw httpError(401, "Não autorizado.");
+}
+
+function constantTimeEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 async function maybeSendSaleNotification(env, orderNsu) {
   if (!smtpConfigured(env)) {
     console.warn("[SMTP] Configuração ausente; venda foi registrada sem e-mail de notificação.");
@@ -631,7 +1172,8 @@ async function maybeSendSaleNotification(env, orderNsu) {
   try {
     const order = await getOrder(env, orderNsu);
     const items = await getOrderItems(env, orderNsu);
-    const message = buildSaleEmail(order, items);
+    const label = await getShippingLabelState(env, orderNsu).catch(() => null);
+    const message = buildSaleEmail(order, items, label);
     await sendSmtpMail(env, message);
     await env.DB.prepare(`
       UPDATE orders SET notification_sent_at = ?, notification_claimed_at = NULL, notification_error = NULL, updated_at = ?
@@ -645,15 +1187,21 @@ async function maybeSendSaleNotification(env, orderNsu) {
   }
 }
 
-function buildSaleEmail(order, items) {
+function buildSaleEmail(order, items, label) {
   const productLines = items.map((item) => `${item.quantity}x ${item.product_name} — ${brl(Number(item.unit_price_cents) * Number(item.quantity))}`).join("\n");
   const productHtml = items.map((item) => `<li>${escapeHtml(item.quantity)}x ${escapeHtml(item.product_name)} — <b>${escapeHtml(brl(Number(item.unit_price_cents) * Number(item.quantity)))}</b></li>`).join("");
   const payment = order.capture_method === "pix" ? "Pix" : order.capture_method === "credit_card" ? "Cartão de crédito" : (order.capture_method || "Confirmado");
   const subject = `Nova venda Silly Cat — ${order.order_nsu}`;
   const addressLine = `${order.street}, ${order.number}${order.complement ? `, ${order.complement}` : ""} — ${order.neighborhood}`;
   const receiptText = order.receipt_url ? `\nComprovante: ${order.receipt_url}` : "";
+  const labelUrls = parseJsonArray(label?.print_urls_json).filter((url) => typeof url === "string" && url);
+  const labelText = label?.status === "ready"
+    ? `\n\nETIQUETA MELHOR ENVIO\nPronta para impressão.${labelUrls.length ? `\n${labelUrls.join("\n")}` : ""}`
+    : label?.status === "error"
+      ? `\n\nETIQUETA MELHOR ENVIO\nFalha na geração automática: ${label.error || "erro não informado"}`
+      : `\n\nETIQUETA MELHOR ENVIO\nAinda não gerada automaticamente.`;
 
-  const text = `Nova venda confirmada!\n\nPedido: ${order.order_nsu}\n\nPRODUTOS\n${productLines}\n\nFRETE\n${order.shipping_company} · ${order.shipping_service_name} — ${brl(order.shipping_cents)}\nPrazo estimado: ${order.shipping_deadline_days || "-"} dia(s) útil(eis)\n\nTOTAL: ${brl(order.total_cents)}\nPagamento: ${payment}\n\nDESTINATÁRIO\n${order.customer_name}\nCPF: ${formatCpf(order.customer_document)}\nTelefone: ${order.customer_phone}\nE-mail: ${order.customer_email}\n\nENDEREÇO\n${addressLine}\n${order.city} - ${order.state}\nCEP ${formatCep(order.postal_code)}${receiptText}\n`;
+  const text = `Nova venda confirmada!\n\nPedido: ${order.order_nsu}\n\nPRODUTOS\n${productLines}\n\nFRETE\n${order.shipping_company} · ${order.shipping_service_name} — ${brl(order.shipping_cents)}\nPrazo estimado: ${order.shipping_deadline_days || "-"} dia(s) útil(eis)\n\nTOTAL: ${brl(order.total_cents)}\nPagamento: ${payment}\n\nDESTINATÁRIO\n${order.customer_name}\nCPF: ${formatCpf(order.customer_document)}\nTelefone: ${order.customer_phone}\nE-mail: ${order.customer_email}\n\nENDEREÇO\n${addressLine}\n${order.city} - ${order.state}\nCEP ${formatCep(order.postal_code)}${receiptText}${labelText}\n`;
 
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#222;line-height:1.5">
     <h2>🧶 Nova venda confirmada!</h2>
@@ -667,6 +1215,8 @@ function buildSaleEmail(order, items) {
     <h3>Endereço</h3>
     <p>${escapeHtml(addressLine)}<br>${escapeHtml(order.city)} - ${escapeHtml(order.state)}<br>CEP ${escapeHtml(formatCep(order.postal_code))}</p>
     ${order.receipt_url ? `<p><a href="${escapeHtml(order.receipt_url)}">Ver comprovante da InfinitePay</a></p>` : ""}
+    ${label?.status === "ready" ? `<h3>Etiqueta Melhor Envio</h3><p>Pronta para impressão.</p>${labelUrls.map((url, index) => `<p><a href="${escapeHtml(url)}">Abrir etiqueta${labelUrls.length > 1 ? ` ${index + 1}` : ""}</a></p>`).join("")}` : ""}
+    ${label?.status === "error" ? `<h3>Etiqueta Melhor Envio</h3><p><b>Falha na geração automática:</b> ${escapeHtml(label.error || "erro não informado")}</p>` : ""}
   </body></html>`;
 
   return { subject, text, html };

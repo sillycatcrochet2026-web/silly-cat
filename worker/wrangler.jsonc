@@ -17,7 +17,10 @@
 		"SMTP_SECURITY": "implicit",
 		"SMTP_USER": "testegerenciadordeemails@gmail.com",
 		"SMTP_FROM": "Silly Cat Croche <testegerenciadordeemails@gmail.com>",
-		"SALE_NOTIFICATION_TO": "sillycatcrochet2026@gmail.com"
+		"SALE_NOTIFICATION_TO": "sillycatcrochet2026@gmail.com",
+		"MELHOR_ENVIO_AUTO_LABEL": "true",
+		"MELHOR_ENVIO_SHIPMENT_MODE": "non_commercial",
+		"MELHOR_ENVIO_LABEL_PRINT_MODE": "private"
 	},
 	"d1_databases": [
 		{
