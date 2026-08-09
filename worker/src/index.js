@@ -1,5 +1,7 @@
 import { connect } from "cloudflare:sockets";
-import catalog from "../../catalogo.json" with { type: "json" };
+import bundledCatalog from "../../catalogo.json" with { type: "json" };
+
+let inventorySchemaReady = false;
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 
@@ -30,25 +32,33 @@ async function route(request, env, ctx) {
       melhor_envio_env: String(env.MELHOR_ENVIO_ENV || "production"),
       infinitepay_configured: configured(env.INFINITEPAY_HANDLE),
       melhor_envio_configured: configured(env.MELHOR_ENVIO_TOKEN) && digits(env.MELHOR_ENVIO_FROM_POSTAL_CODE).length === 8,
+      melhor_envio_allowed_carriers: allowedCarrierNames(env),
       smtp_configured: smtpConfigured(env),
     });
   }
 
   if (request.method === "GET" && path === "/api/catalog") {
-    const safe = catalog.map(({ frete, ...product }) => ({ ...product, frete_provisorio: Boolean(frete?.provisorio) }));
+    const catalog = await loadEffectiveCatalog(env);
+    const safe = catalog.map(({ frete, ...product }) => ({
+      ...product,
+      tag: Number(product.estoque) <= 0 ? "Esgotado" : product.tag,
+      frete_provisorio: Boolean(frete?.provisorio),
+    }));
     return json(request, env, 200, safe);
   }
 
   if (request.method === "POST" && path === "/api/shipping/quote") {
     const body = await readJson(request);
-    const cart = resolveCart(body.items);
+    const catalog = await loadEffectiveCatalog(env);
+    const cart = resolveCart(body.items, catalog);
     const result = await quoteShipping(env, cart, body.postalCode);
     return json(request, env, 200, { subtotal_centavos: cartSubtotal(cart), ...result });
   }
 
   if (request.method === "POST" && path === "/api/checkout") {
     const body = await readJson(request);
-    const cart = resolveCart(body.items);
+    const catalog = await loadEffectiveCatalog(env);
+    const cart = resolveCart(body.items, catalog);
     const orderInput = validateOrderInput(body);
     const quote = await quoteShipping(env, cart, orderInput.address.cep);
     const shipping = quote.options.find((option) => String(option.id) === String(body.shippingServiceId || ""));
@@ -166,6 +176,166 @@ async function route(request, env, ctx) {
   return json(request, env, 404, { error: "Rota não encontrada." });
 }
 
+async function ensureInventorySchema(env) {
+  if (inventorySchemaReady) return;
+  await env.DB.batch([
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS inventory (
+        product_id TEXT PRIMARY KEY,
+        stock INTEGER NOT NULL DEFAULT 0,
+        catalog_stock_key TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS inventory_movements (
+        order_nsu TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (order_nsu, product_id)
+      )
+    `),
+  ]);
+  inventorySchemaReady = true;
+}
+
+function sourceStock(product) {
+  const value = Number(product?.estoque ?? 1);
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.floor(value));
+}
+
+function catalogStockKey(product) {
+  // estoque_revisao é opcional. Ele serve apenas para o caso raro em que
+  // você queira repor exatamente a mesma quantidade original de um produto
+  // já vendido. Ex.: estoque continua 1 no JSON, mas o D1 já baixou para 0;
+  // mudar estoque_revisao de 0 para 1 força uma reposição para 1.
+  return `${sourceStock(product)}:${clean(product?.estoque_revisao ?? "0", 80)}`;
+}
+
+async function loadSourceCatalog(env) {
+  const storeUrl = String(env.STORE_URL || env.STORE_ORIGIN || "https://www.sillycatcroche.shop").replace(/\/$/, "");
+  const url = `${storeUrl}/catalogo.json?sc=${Date.now()}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", "Cache-Control": "no-cache" },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (!Array.isArray(data)) throw new Error("catalogo.json não retornou uma lista.");
+    return data;
+  } catch (error) {
+    console.warn("[catalogo] Falha ao buscar catálogo publicado; usando cópia embarcada.", error?.message || error);
+    return bundledCatalog;
+  }
+}
+
+async function syncInventory(env, catalog) {
+  await ensureInventorySchema(env);
+  const result = await env.DB.prepare("SELECT product_id, stock, catalog_stock_key FROM inventory").all();
+  const rows = new Map((result.results || []).map((row) => [String(row.product_id), row]));
+  const statements = [];
+  const timestamp = nowIso();
+
+  for (const product of catalog) {
+    const id = clean(product?.id, 100);
+    if (!id) continue;
+    const key = catalogStockKey(product);
+    const stock = sourceStock(product);
+    const existing = rows.get(id);
+
+    if (!existing) {
+      statements.push(env.DB.prepare(`
+        INSERT INTO inventory (product_id, stock, catalog_stock_key, updated_at)
+        VALUES (?, ?, ?, ?)
+      `).bind(id, stock, key, timestamp));
+    } else if (String(existing.catalog_stock_key) !== key) {
+      // Uma alteração explícita de estoque (ou estoque_revisao) no catálogo
+      // é tratada como reposição/ajuste manual e passa a ser o novo saldo.
+      statements.push(env.DB.prepare(`
+        UPDATE inventory SET stock = ?, catalog_stock_key = ?, updated_at = ?
+        WHERE product_id = ?
+      `).bind(stock, key, timestamp, id));
+    }
+  }
+
+  if (statements.length) await env.DB.batch(statements);
+}
+
+async function loadEffectiveCatalog(env) {
+  const catalog = await loadSourceCatalog(env);
+  await syncInventory(env, catalog);
+  // Também reconcilia vendas pagas que já existiam antes da v2.1 (como a
+  // compra de teste usada para validar o fluxo ponta a ponta).
+  await reconcilePaidStock(env);
+  const result = await env.DB.prepare("SELECT product_id, stock FROM inventory").all();
+  const stockMap = new Map((result.results || []).map((row) => [String(row.product_id), Number(row.stock)]));
+
+  return catalog.map((product) => ({
+    ...product,
+    estoque: Math.max(0, Number(stockMap.get(String(product.id)) ?? sourceStock(product))),
+  }));
+}
+
+async function reconcilePaidStock(env) {
+  await ensureInventorySchema(env);
+  const pending = await env.DB.prepare(`
+    SELECT DISTINCT o.order_nsu
+    FROM orders o
+    JOIN order_items oi ON oi.order_nsu = o.order_nsu
+    LEFT JOIN inventory_movements im
+      ON im.order_nsu = oi.order_nsu AND im.product_id = oi.product_id
+    WHERE o.status = 'paid' AND im.order_nsu IS NULL
+    ORDER BY o.paid_at ASC
+    LIMIT 100
+  `).all();
+
+  for (const row of pending.results || []) {
+    await applyStockForPaidOrder(env, String(row.order_nsu));
+  }
+}
+
+async function applyStockForPaidOrder(env, orderNsu) {
+  await ensureInventorySchema(env);
+  const items = await getOrderItems(env, orderNsu);
+  if (!items.length) return;
+
+  // Garante que produtos novos já tenham uma linha de estoque antes de
+  // aplicar a baixa. O catálogo publicado é a fonte de metadados e estoque
+  // inicial; o D1 passa a controlar o saldo vivo após a primeira venda.
+  const catalog = await loadSourceCatalog(env);
+  await syncInventory(env, catalog);
+
+  const timestamp = nowIso();
+  const statements = [];
+  for (const item of items) {
+    const quantity = Math.max(1, Number(item.quantity || 1));
+    const productId = String(item.product_id);
+
+    // O UPDATE só desconta quando ainda não existe movimento para este
+    // pedido/produto. Em seguida o INSERT OR IGNORE grava o marcador.
+    // Como D1 batch é transacional, a operação fica idempotente.
+    statements.push(env.DB.prepare(`
+      UPDATE inventory
+      SET stock = MAX(0, stock - ?), updated_at = ?
+      WHERE product_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM inventory_movements
+          WHERE order_nsu = ? AND product_id = ?
+        )
+    `).bind(quantity, timestamp, productId, orderNsu, productId));
+
+    statements.push(env.DB.prepare(`
+      INSERT OR IGNORE INTO inventory_movements (order_nsu, product_id, quantity, created_at)
+      VALUES (?, ?, ?, ?)
+    `).bind(orderNsu, productId, quantity, timestamp));
+  }
+
+  await env.DB.batch(statements);
+}
+
 function validateOrderInput(body) {
   const customer = {
     name: clean(body.customer?.name, 120),
@@ -192,7 +362,7 @@ function validateOrderInput(body) {
   return { customer, address };
 }
 
-function resolveCart(items) {
+function resolveCart(items, catalog) {
   if (!Array.isArray(items) || !items.length) throw httpError(400, "O carrinho está vazio.");
   const map = new Map(catalog.map((product) => [product.id, product]));
   const seen = new Set();
@@ -258,8 +428,18 @@ async function quoteShipping(env, cart, destinationPostalCode) {
   });
 
   if (!Array.isArray(data)) throw httpError(502, "Resposta inesperada do Melhor Envio.");
-  const options = data
-    .filter((item) => item && !item.error && (item.custom_price ?? item.price) != null)
+
+  // A Silly Cat só oferece as transportadoras definidas em
+  // MELHOR_ENVIO_ALLOWED_CARRIERS. Por padrão: Correios e Jadlog.
+  // A filtragem é feita no backend para que outras transportadoras nunca
+  // sejam aceitas nem no cálculo exibido nem na validação final do checkout.
+  const allowedCarriers = allowedCarrierKeys(env);
+  const validQuotes = data.filter((item) => item && !item.error && (item.custom_price ?? item.price) != null);
+  const carrierFilteredQuotes = allowedCarriers === null
+    ? validQuotes
+    : validQuotes.filter((item) => allowedCarriers.has(normalizeCarrierKey(item.company?.name)));
+
+  const options = carrierFilteredQuotes
     .map((item) => ({
       id: String(item.id),
       nome: String(item.name || "Frete"),
@@ -272,6 +452,9 @@ async function quoteShipping(env, cart, destinationPostalCode) {
 
   if (!options.length) {
     const errors = data.filter((item) => item?.error).map((item) => item.error).filter(Boolean);
+    if (validQuotes.length && allowedCarriers !== null) {
+      throw httpError(422, `Nenhuma opção das transportadoras permitidas foi encontrada para esse CEP. Transportadoras permitidas: ${allowedCarrierNames(env).join(", ")}.`);
+    }
     throw httpError(422, errors[0] || "Nenhuma opção de frete foi encontrada para esse CEP.");
   }
 
@@ -355,7 +538,14 @@ async function verifyAndRecordPayment(env, { orderNsu, transactionNsu, slug, rec
   const order = await getOrder(env, orderNsu);
   if (!order) throw httpError(404, "Pedido não encontrado.");
 
-  if (order.status === "paid") return publicOrderStatus(order);
+  if (order.status === "paid") {
+    // A baixa de estoque é idempotente. Se uma execução anterior confirmou o
+    // pagamento mas falhou antes de atualizar o estoque, esta nova consulta
+    // tenta novamente sem descontar duas vezes.
+    try { await applyStockForPaidOrder(env, orderNsu); }
+    catch (error) { console.error("[estoque]", error?.message || error); }
+    return publicOrderStatus(order);
+  }
 
   requireConfig("INFINITEPAY_HANDLE", env.INFINITEPAY_HANDLE);
   const payment = await fetchJson("https://api.checkout.infinitepay.io/payment_check", {
@@ -389,6 +579,13 @@ async function verifyAndRecordPayment(env, { orderNsu, transactionNsu, slug, rec
     Number(payment.paid_amount || payment.amount || order.total_cents), receiptUrl || null,
     JSON.stringify(payment), orderNsu
   ).run();
+
+  try { await applyStockForPaidOrder(env, orderNsu); }
+  catch (error) {
+    // O pagamento não deixa de ser válido se a baixa de estoque tiver uma
+    // falha transitória. A próxima verificação do pedido tenta novamente.
+    console.error("[estoque]", error?.message || error);
+  }
 
   return publicOrderStatus(await getOrder(env, orderNsu));
 }
@@ -682,6 +879,26 @@ function configured(value) {
 
 function clean(value, max = 250) {
   return String(value || "").trim().slice(0, max);
+}
+
+function normalizeCarrierKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function allowedCarrierNames(env) {
+  const raw = clean(env.MELHOR_ENVIO_ALLOWED_CARRIERS, 250) || "Correios,Jadlog";
+  if (["*", "all", "todos"].includes(raw.trim().toLowerCase())) return ["Todas"];
+  return raw.split(",").map((name) => name.trim()).filter(Boolean);
+}
+
+function allowedCarrierKeys(env) {
+  const names = allowedCarrierNames(env);
+  if (names.length === 1 && names[0] === "Todas") return null;
+  return new Set(names.map(normalizeCarrierKey).filter(Boolean));
 }
 
 function digits(value) { return String(value || "").replace(/\D/g, ""); }
