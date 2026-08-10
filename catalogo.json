@@ -7,7 +7,7 @@
     "img": "img/Pikachu.jpeg",
     "tag": "Novo",
     "estoque": 1,
-    "frete": {"largura": 20, "altura": 25, "comprimento": 18, "peso": 0.35, "provisorio": true}
+    "frete": {"largura": 16, "altura": 23, "comprimento": 16, "peso": 0.35, "provisorio": true}
   },
   {
     "id": "kirby",
@@ -131,14 +131,5 @@
     "tag": "Esgotado",
     "estoque": 0,
     "frete": {"largura": 15, "altura": 10, "comprimento": 16, "peso": 0.15, "provisorio": true}
-  },
-  {
-    "id": "teste",
-    "nome": "TESTE",
-    "preco_centavos": 100,
-    "desc": "(TESTE) Miffy tomatinho feito de linha amigurumi soft. Altura: 17 cm.",
-    "img": "img/miffy.jpeg",
-    "estoque": 1,
-    "frete": {"largura": 16, "altura": 20, "comprimento": 16, "peso": 0.22, "provisorio": true}
   }
 ]
