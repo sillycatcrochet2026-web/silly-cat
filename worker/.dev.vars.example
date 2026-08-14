@@ -1,8 +1,0 @@
-# Apenas para desenvolvimento local. Copie para .dev.vars.
-# Nunca envie .dev.vars ao GitHub.
-MELHOR_ENVIO_TOKEN=cole_seu_token_aqui
-SMTP_PASSWORD=cole_sua_senha_de_app_smtp_aqui
-
-# Se quiser que o retorno da InfinitePay volte ao site local durante testes:
-# STORE_ORIGIN=http://127.0.0.1:8000
-# STORE_URL=http://127.0.0.1:8000

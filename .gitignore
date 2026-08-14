@@ -1,0 +1,11 @@
+worker/
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler/
+node_modules/
+.dev.vars
+.wrangler/
+dist/
+#teste
