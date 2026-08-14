@@ -4,6 +4,7 @@
   const TOKEN_KEY = "sillycat_admin_session";
   let PRODUCTS = [];
   let IMAGE_UPLOAD_ENABLED = false;
+  let PRODUCTION_ORDERS = [];
   let editingId = null;
 
   const $ = (id) => document.getElementById(id);
@@ -69,7 +70,7 @@
     $("loginPanel").hidden = true;
     $("dashboard").hidden = false;
     try {
-      await loadProducts();
+      await Promise.all([loadProducts(), loadProductionOrders()]);
     } catch (error) {
       if (!token()) return;
       setStatus(error.message, true);
@@ -95,6 +96,61 @@
     $("metricUnits").textContent = summary.units ?? 0;
     $("metricSoldOut").textContent = summary.sold_out ?? 0;
     $("metricArchived").textContent = summary.archived ?? 0;
+  }
+
+  async function loadProductionOrders() {
+    const { data } = await api("/api/admin/orders/production-pending");
+    PRODUCTION_ORDERS = Array.isArray(data.orders) ? data.orders : [];
+    $("metricProduction").textContent = PRODUCTION_ORDERS.length;
+    renderProductionOrders();
+  }
+
+  function renderProductionOrders() {
+    const list = $("productionOrders");
+    const empty = $("productionEmpty");
+    if (!list || !empty) return;
+    empty.hidden = PRODUCTION_ORDERS.length > 0;
+    list.innerHTML = PRODUCTION_ORDERS.map((order) => {
+      const items = (order.items || []).map((item) => {
+        const needed = Number(item.production_quantity || 0);
+        return `<li>${escapeHtml(item.quantity)}x ${escapeHtml(item.product_name)}${needed > 0 ? ` · <b>produzir ${needed}</b>` : ""}</li>`;
+      }).join("");
+      const paidAt = order.paid_at ? new Date(order.paid_at).toLocaleString("pt-BR") : "—";
+      const productionReady = order.production_status === "ready";
+      return `<article class="production-order-card">
+        <div class="production-order-main">
+          <div class="production-order-head"><strong>${escapeHtml(order.order_nsu)}</strong><span>${escapeHtml(paidAt)}</span></div>
+          <p><b>${escapeHtml(order.customer_name || "Cliente")}</b> · ${money(order.total_cents)}</p>
+          <ul>${items}</ul>
+          <p class="production-order-shipping">${escapeHtml(order.shipping_company || "")} · ${escapeHtml(order.shipping_service_name || "")} · prazo de envio ${escapeHtml(order.shipping_deadline_days || "-")} dia(s)</p>
+          ${productionReady ? `<p class="production-order-ready">✓ Produção concluída; etiqueta ainda pendente.</p>` : ""}
+        </div>
+        <button class="primary-btn production-ready-btn" type="button" data-production-ready="${escapeHtml(order.order_nsu)}">${productionReady ? "Tentar gerar etiqueta" : "Produção concluída + gerar etiqueta"}</button>
+      </article>`;
+    }).join("");
+
+    list.querySelectorAll("[data-production-ready]").forEach((button) => {
+      button.addEventListener("click", () => finishProduction(button.dataset.productionReady, button));
+    });
+  }
+
+  async function finishProduction(orderNsu, button) {
+    if (!confirm(`Confirmar que toda a produção do pedido ${orderNsu} foi concluída? A etiqueta do Melhor Envio será gerada agora e poderá consumir saldo.`)) return;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = "Gerando etiqueta…";
+    try {
+      const { data } = await api(`/api/admin/orders/${encodeURIComponent(orderNsu)}/production-ready`, { method: "POST" });
+      const urls = data?.label?.print_urls || [];
+      setStatus(urls.length ? `Produção concluída. Etiqueta pronta: ${urls[0]}` : "Produção concluída. Etiqueta processada pelo Melhor Envio.");
+      await loadProductionOrders();
+    } catch (error) {
+      setStatus(`Produção marcada como concluída, mas a etiqueta não pôde ser finalizada: ${error.message}`, true);
+      await loadProductionOrders().catch(() => {});
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
   }
 
   function filteredProducts() {
@@ -320,7 +376,8 @@
   $("loginForm").addEventListener("submit", (event) => { event.preventDefault(); login($("adminKey").value); });
   $("togglePassword").addEventListener("click", () => { $("adminKey").type = $("adminKey").type === "password" ? "text" : "password"; });
   $("logoutButton").addEventListener("click", () => logout(true));
-  $("refreshButton").addEventListener("click", () => loadProducts().catch((e) => setStatus(e.message, true)));
+  $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadProductionOrders()]).catch((e) => setStatus(e.message, true)));
+  $("refreshProductionButton").addEventListener("click", () => loadProductionOrders().catch((e) => setStatus(e.message, true)));
   $("exportButton").addEventListener("click", exportCatalog);
   $("newProductButton").addEventListener("click", () => openEditor());
   $("searchInput").addEventListener("input", renderProducts);

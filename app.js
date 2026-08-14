@@ -1,10 +1,12 @@
 const PLACEHOLDER = /COLE_AQUI/;
 const CART_STORAGE_KEY = "silly-cat-cart-v1";
+const MAX_CART_QUANTITY = 20;
 let PRODUTOS = [];
 let CART = loadCart();
 let SHIPPING_QUOTES = [];
 let SELECTED_SHIPPING_ID = null;
 let QUOTED_CEP = "";
+let SERVER_PRODUCTION_INFO = null;
 let CHECKOUT_DATA = {
   cep:"", name:"", email:"", phone:"", document:"", street:"", neighborhood:"", number:"", complement:"", city:"", state:""
 };
@@ -46,9 +48,20 @@ function showToast(msg){
 
 function normalizeProductTag(product){
   const tag = String(product.tag || "").trim().toLowerCase();
+  if(Number(product.estoque) <= 0) return "SOB ENCOMENDA";
   if(tag === "novo") return "NOVO";
-  if(tag === "esgotado" || Number(product.estoque) <= 0) return "ESGOTADO";
   return "";
+}
+
+function formatProductDimensions(product){
+  const frete = product?.frete || {};
+  const width = Number(frete.largura || 0);
+  const height = Number(frete.altura || 0);
+  const length = Number(frete.comprimento || 0);
+  const weight = Number(frete.peso || 0);
+  if(!(width > 0 && height > 0 && length > 0)) return "";
+  const weightText = weight > 0 ? ` · ${String(weight).replace(".", ",")} kg` : "";
+  return `${width} × ${height} × ${length} cm${weightText}`;
 }
 
 async function loadCatalog(){
@@ -77,13 +90,13 @@ function productById(id){
 function productCard(product, index){
   const hasImage = product.img && !PLACEHOLDER.test(product.img);
   const tagLabel = normalizeProductTag(product);
-  const tagClass = tagLabel ? ` product-badge--${tagLabel.toLowerCase()}` : "";
+  const tagClass = tagLabel ? ` product-badge--${tagLabel.toLowerCase().replace(/\s+/g, "-")}` : "";
   const badge = tagLabel ? `<span class="product-badge${tagClass}">${escapeHtml(tagLabel)}</span>` : "";
   const fallbackMedia = `<div class="product-placeholder">${sillyCatSvg()}</div>${badge}`;
   const media = hasImage
     ? `<img src="${escapeHtml(product.img)}" alt="${escapeHtml(product.nome)}" loading="lazy" onerror="this.closest('.product-media').innerHTML='${fallbackMedia.replaceAll('"','&quot;')}'">`
     : fallbackMedia;
-  const soldOut = tagLabel === "ESGOTADO" || Number(product.estoque) <= 0;
+  const madeToOrder = Number(product.estoque) <= 0;
   const alreadyInCart = CART.some(item => item.id === product.id);
 
   return `<article class="product-card reveal" style="--i:${index}">
@@ -96,8 +109,8 @@ function productCard(product, index){
       <p class="product-desc">${escapeHtml(product.desc)}</p>
       <p class="price">${formatBRL(product.preco_centavos)}</p>
       <div class="product-actions">
-        <button class="soft-btn add-cart-btn" type="button" data-add-cart="${escapeHtml(product.id)}" ${soldOut ? "disabled" : ""}>
-          ${soldOut ? "Esgotado" : alreadyInCart ? "No carrinho ✓" : "Adicionar ao carrinho"}
+        <button class="soft-btn add-cart-btn" type="button" data-add-cart="${escapeHtml(product.id)}">
+          ${alreadyInCart ? "No carrinho ✓" : madeToOrder ? "Encomendar" : "Adicionar ao carrinho"}
         </button>
       </div>
     </div>
@@ -133,7 +146,12 @@ function loadCart(){
   try{
     const value = JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || "[]");
     if(!Array.isArray(value)) return [];
-    return value.filter(item => item && typeof item.id === "string").map(item => ({id:item.id, quantity:1}));
+    return value
+      .filter(item => item && typeof item.id === "string")
+      .map(item => ({
+        id:item.id,
+        quantity:Math.min(MAX_CART_QUANTITY, Math.max(1, Math.floor(Number(item.quantity || 1))))
+      }));
   }catch{
     return [];
   }
@@ -144,26 +162,45 @@ function saveCart(){
 }
 
 function sanitizeCart(){
-  const valid = new Set(PRODUTOS.filter(p => Number(p.estoque) > 0).map(p => p.id));
-  CART = CART.filter(item => valid.has(item.id));
+  const valid = new Set(PRODUTOS.map(p => p.id));
+  CART = CART
+    .filter(item => valid.has(item.id))
+    .map(item => ({...item, quantity:Math.min(MAX_CART_QUANTITY, Math.max(1, Math.floor(Number(item.quantity || 1))))}));
   saveCart();
 }
 
 function addToCart(id){
   const product = productById(id);
-  if(!product || Number(product.estoque) <= 0){
-    showToast("Essa peça está esgotada 🧶");
-    return;
-  }
+  if(!product) return;
   if(!CART.some(item => item.id === id)){
     CART.push({id, quantity:1});
     saveCart();
     resetShipping();
-    showToast(`${product.nome} foi para o carrinho ♡`);
+    showToast(Number(product.estoque) > 0
+      ? `${product.nome} foi para o carrinho ♡`
+      : `${product.nome} foi adicionado como encomenda ♡`);
   }
   renderProducts();
   renderCart();
   openCart();
+}
+
+function setCartQuantity(id, quantity){
+  const item = CART.find(entry => entry.id === id);
+  if(!item) return;
+  const next = Math.min(MAX_CART_QUANTITY, Math.max(1, Math.floor(Number(quantity || 1))));
+  if(next === item.quantity) return;
+  item.quantity = next;
+  saveCart();
+  resetShipping();
+  renderProducts();
+  renderCart();
+}
+
+function changeCartQuantity(id, delta){
+  const item = CART.find(entry => entry.id === id);
+  if(!item) return;
+  setCartQuantity(id, Number(item.quantity || 1) + Number(delta || 0));
 }
 
 function removeFromCart(id){
@@ -183,13 +220,40 @@ function cartSubtotal(){
 }
 
 function cartPayload(){
-  return CART.map(item => ({id:item.id, quantity:1}));
+  return CART.map(item => ({id:item.id, quantity:Math.max(1, Number(item.quantity || 1))}));
+}
+
+function localProductionInfo(){
+  const items = cartDetailed().map(({product, quantity}) => {
+    const stock = Math.max(0, Number(product.estoque || 0));
+    const productionQuantity = Math.max(0, Number(quantity || 1) - stock);
+    return {
+      id:product.id,
+      nome:product.nome,
+      quantity:Number(quantity || 1),
+      stock,
+      production_quantity:productionQuantity
+    };
+  }).filter(item => item.production_quantity > 0);
+  const units = items.reduce((sum, item) => sum + item.production_quantity, 0);
+  return {
+    required:units > 0,
+    units,
+    production_days:units > 0 ? 7 : 0,
+    dispatch_extra_days:units > 0 ? 3 : 0,
+    items
+  };
+}
+
+function currentProductionInfo(){
+  return SERVER_PRODUCTION_INFO || localProductionInfo();
 }
 
 function resetShipping(){
   SHIPPING_QUOTES = [];
   SELECTED_SHIPPING_ID = null;
   QUOTED_CEP = "";
+  SERVER_PRODUCTION_INFO = null;
 }
 
 function captureCheckoutData(){
@@ -267,9 +331,10 @@ function renderCart(){
   const itemsEl = document.getElementById("cartItems");
   const checkoutEl = document.getElementById("cartCheckoutArea");
   const countEls = document.querySelectorAll("[data-cart-count]");
+  const cartUnitCount = CART.reduce((sum, item) => sum + Math.max(1, Number(item.quantity || 1)), 0);
   countEls.forEach(el => {
-    el.textContent = String(CART.length);
-    el.toggleAttribute("hidden", CART.length === 0);
+    el.textContent = String(cartUnitCount);
+    el.toggleAttribute("hidden", cartUnitCount === 0);
   });
 
   if(!itemsEl || !checkoutEl) return;
@@ -286,20 +351,44 @@ function renderCart(){
     return;
   }
 
-  itemsEl.innerHTML = `<div class="cart-item-list">${detailed.map(({product}) => `
+  itemsEl.innerHTML = `<div class="cart-item-list">${detailed.map(({product, quantity}) => {
+    const stock = Math.max(0, Number(product.estoque || 0));
+    const productionQuantity = Math.max(0, Number(quantity || 1) - stock);
+    const dimensions = formatProductDimensions(product);
+    const availability = productionQuantity > 0
+      ? `<small class="cart-item-availability warning">${productionQuantity} un. sob encomenda · ${Math.min(stock, quantity)} pronta(s)</small>`
+      : `<small class="cart-item-availability">${quantity} un. em pronta entrega</small>`;
+    return `
     <article class="cart-item">
       <img src="${escapeHtml(product.img)}" alt="" loading="lazy">
       <div class="cart-item-copy">
         <strong>${escapeHtml(product.nome)}</strong>
-        <span>${formatBRL(product.preco_centavos)}</span>
+        <span>${formatBRL(product.preco_centavos)} cada</span>
+        ${dimensions ? `<small class="cart-item-dimensions">Dimensões para envio: ${escapeHtml(dimensions)}</small>` : ""}
+        ${availability}
+        <div class="cart-quantity" aria-label="Quantidade de ${escapeHtml(product.nome)}">
+          <button type="button" data-cart-minus="${escapeHtml(product.id)}" aria-label="Diminuir quantidade">−</button>
+          <input type="number" min="1" max="${MAX_CART_QUANTITY}" value="${Number(quantity)}" data-cart-quantity="${escapeHtml(product.id)}" aria-label="Quantidade">
+          <button type="button" data-cart-plus="${escapeHtml(product.id)}" aria-label="Aumentar quantidade">+</button>
+        </div>
       </div>
       <button type="button" class="cart-remove" data-remove-cart="${escapeHtml(product.id)}" aria-label="Remover ${escapeHtml(product.nome)}">×</button>
-    </article>`).join("")}</div>`;
+    </article>`;
+  }).join("")}</div>`;
 
   checkoutEl.innerHTML = checkoutMarkup();
 
   document.querySelectorAll("[data-remove-cart]").forEach(btn => {
     btn.addEventListener("click",()=>removeFromCart(btn.dataset.removeCart));
+  });
+  document.querySelectorAll("[data-cart-minus]").forEach(btn => {
+    btn.addEventListener("click",()=>changeCartQuantity(btn.dataset.cartMinus, -1));
+  });
+  document.querySelectorAll("[data-cart-plus]").forEach(btn => {
+    btn.addEventListener("click",()=>changeCartQuantity(btn.dataset.cartPlus, 1));
+  });
+  document.querySelectorAll("[data-cart-quantity]").forEach(input => {
+    input.addEventListener("change",()=>setCartQuantity(input.dataset.cartQuantity, input.value));
   });
 
   document.getElementById("shippingForm")?.addEventListener("submit", calculateShipping);
@@ -323,16 +412,26 @@ function checkoutMarkup(){
   const subtotal = cartSubtotal();
   const freight = selectedShipping();
   const total = subtotal + Number(freight?.preco_centavos || 0);
+  const production = currentProductionInfo();
+  const productionNotice = production.required ? `
+    <div class="production-notice" role="status">
+      <strong>🧶 Parte do pedido será feita sob encomenda</strong>
+      <p><b>${production.units}</b> ${production.units === 1 ? "item do seu carrinho será produzido" : "itens do seu carrinho serão produzidos"} primeiro. A produção pode levar até <b>${production.production_days || 7} dias</b>. Depois, o pedido inteiro será enviado junto.</p>
+      <p>O prazo de envio exibido abaixo já recebe <b>+${production.dispatch_extra_days || 3} dias</b> de margem para preparação/postagem. A etiqueta só será gerada quando a produção estiver concluída.</p>
+    </div>` : "";
   const quoteList = SHIPPING_QUOTES.length ? `
     <div class="shipping-choice-list" role="radiogroup" aria-label="Opções de frete">
       ${SHIPPING_QUOTES.map(option => {
         const checked = String(option.id) === String(SELECTED_SHIPPING_ID);
         const deadline = option.prazo_dias ? `${option.prazo_dias} dia${option.prazo_dias === 1 ? "" : "s"} úteis` : "Prazo informado pela transportadora";
+        const baseDeadline = option.prazo_transportadora_dias && production.required
+          ? `Envio: ${option.prazo_dias} dias úteis (${option.prazo_transportadora_dias} + ${production.dispatch_extra_days || 3})`
+          : deadline;
         return `<label class="shipping-choice ${checked ? "selected" : ""}">
           <input type="radio" name="shipping-option" value="${escapeHtml(option.id)}" ${checked ? "checked" : ""}>
           <span>
             <b>${escapeHtml(option.transportadora)} · ${escapeHtml(option.nome)}</b>
-            <small>${escapeHtml(deadline)}</small>
+            <small>${escapeHtml(baseDeadline)}</small>
           </span>
           <strong>${formatBRL(option.preco_centavos)}</strong>
         </label>`;
@@ -341,6 +440,7 @@ function checkoutMarkup(){
 
   return `<div class="cart-checkout">
     <div class="cart-summary-row"><span>Subtotal</span><strong>${formatBRL(subtotal)}</strong></div>
+    ${productionNotice}
 
     <form class="shipping-form" id="shippingForm">
       <label for="checkoutCep">Calcular frete</label>
@@ -468,6 +568,7 @@ async function calculateShipping(event){
   try{
     const data = await apiPost("/api/shipping/quote", {postalCode, items:cartPayload()});
     SHIPPING_QUOTES = Array.isArray(data.options) ? data.options : [];
+    SERVER_PRODUCTION_INFO = data.production || localProductionInfo();
     SELECTED_SHIPPING_ID = SHIPPING_QUOTES[0]?.id || null;
     QUOTED_CEP = postalCode;
     CHECKOUT_DATA.cep = `${postalCode.slice(0,5)}-${postalCode.slice(5)}`;
@@ -633,11 +734,15 @@ async function initPaymentResult(){
       saveCart();
       const receiptLink = data.receipt_url || receiptUrl;
       const receipt = receiptLink ? `<a class="soft-btn secondary" href="${escapeHtml(receiptLink)}" target="_blank" rel="noopener">Ver comprovante</a>` : "";
+      const productionMessage = data.requires_production
+        ? `<div class="payment-production-note"><b>🧶 Pedido com encomenda</b><br>${Number(data.production_units || 0)} ${Number(data.production_units || 0) === 1 ? "item será produzido" : "itens serão produzidos"} antes do envio. A produção pode levar até ${Number(data.production_days || 7)} dias; depois, tudo será enviado junto.</div>`
+        : "";
       result.innerHTML = `<div class="payment-state success">
         <span class="payment-state-icon">✓</span>
         <h2>Pagamento confirmado!</h2>
         <p>Pedido <b>${escapeHtml(orderNsu)}</b>. Obrigada por comprar uma peça da Silly Cat ♡</p>
         <p>Valor confirmado: <b>${formatBRL(data.amount)}</b></p>
+        ${productionMessage}
         <div class="payment-state-actions">${receipt}<a class="soft-btn" href="produtos.html">Continuar navegando</a></div>
       </div>`;
     }else{

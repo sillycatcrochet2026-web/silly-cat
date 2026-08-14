@@ -9,3 +9,5 @@ node_modules/
 .wrangler/
 dist/
 #teste
+PATCH_*
+patch notes/

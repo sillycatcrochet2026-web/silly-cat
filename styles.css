@@ -2154,3 +2154,70 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important;box-shad
   .shipping-choice{grid-template-columns:auto 1fr}
   .shipping-choice>strong{grid-column:2;justify-self:start}
 }
+
+/* v2.6 — quantidades, dimensões e encomendas */
+.product-badge--sob-encomenda{
+  background:#fff3c7;
+  color:#7a5200;
+}
+.cart-item-copy small{
+  display:block;
+  line-height:1.25;
+}
+.cart-item-dimensions{
+  color:#5f6570;
+  font-size:.76rem;
+  font-weight:700;
+}
+.cart-item-availability{
+  color:#2d6a4f;
+  font-size:.76rem;
+  font-weight:900;
+}
+.cart-item-availability.warning{color:#8a5b00}
+.cart-quantity{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-top:5px;
+}
+.cart-quantity button{
+  width:30px;
+  height:30px;
+  border:0;
+  border-radius:10px;
+  background:var(--blue-soft);
+  color:var(--peach-dark);
+  font:inherit;
+  font-weight:900;
+  cursor:pointer;
+}
+.cart-quantity input{
+  width:48px;
+  height:30px;
+  border:2px solid rgba(121,150,203,.45);
+  border-radius:10px;
+  text-align:center;
+  font:inherit;
+  font-weight:900;
+  color:var(--ink);
+  background:white;
+}
+.production-notice,
+.payment-production-note{
+  padding:14px 16px;
+  border-radius:18px;
+  background:#fff6d9;
+  border:2px solid rgba(195,139,0,.32);
+  color:#6f4a00;
+  line-height:1.4;
+}
+.production-notice strong{display:block;margin-bottom:5px;color:#6f4a00}
+.production-notice p{font-size:.84rem;font-weight:700;margin:4px 0}
+.payment-production-note{margin-top:18px;text-align:left;font-weight:700}
+
+@media (max-width:520px){
+  .cart-item{align-items:start}
+  .cart-item-copy{gap:4px}
+  .cart-item-dimensions,.cart-item-availability{font-size:.72rem}
+}

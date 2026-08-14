@@ -49,6 +49,7 @@
         <article class="metric"><span>Unidades disponíveis</span><strong id="metricUnits">—</strong></article>
         <article class="metric"><span>Esgotados</span><strong id="metricSoldOut">—</strong></article>
         <article class="metric"><span>Arquivados</span><strong id="metricArchived">—</strong></article>
+        <article class="metric"><span>Encomendas em produção</span><strong id="metricProduction">—</strong></article>
       </section>
 
       <section class="toolbar" aria-label="Ferramentas do catálogo">
@@ -75,6 +76,19 @@
 
       <div class="notice" id="imageNotice" hidden></div>
       <div class="status-line" id="statusLine" aria-live="polite"></div>
+
+      <section class="production-admin-section" aria-labelledby="productionAdminTitle">
+        <div class="section-heading-row">
+          <div>
+            <p class="eyebrow">Pedidos pagos</p>
+            <h2 id="productionAdminTitle">Encomendas aguardando produção</h2>
+          </div>
+          <button class="ghost-btn" type="button" id="refreshProductionButton">Atualizar encomendas</button>
+        </div>
+        <p class="production-admin-help">Quando terminar de produzir todos os itens de um pedido, use o botão abaixo. Só então a etiqueta do Melhor Envio será comprada e gerada.</p>
+        <div id="productionOrders" class="production-order-list"></div>
+        <div id="productionEmpty" class="empty-state" hidden>Nenhuma encomenda aguardando produção.</div>
+      </section>
 
       <section class="product-list" id="productList" aria-live="polite"></section>
       <div class="empty-state" id="emptyState" hidden>Nenhum produto corresponde ao filtro.</div>
