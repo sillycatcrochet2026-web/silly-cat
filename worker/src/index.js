@@ -3,6 +3,7 @@ import bundledCatalog from "../../catalogo.json" with { type: "json" };
 
 let inventorySchemaReady = false;
 let shippingSchemaReady = false;
+let adminCatalogSchemaReady = false;
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 
@@ -38,11 +39,104 @@ async function route(request, env, ctx) {
       melhor_envio_sender_configured: senderConfigured(env),
       melhor_envio_label_print_mode: labelPrintMode(env),
       smtp_configured: smtpConfigured(env),
+      admin_configured: configured(env.ADMIN_API_KEY),
+      product_images_configured: Boolean(env.PRODUCT_IMAGES),
     });
   }
 
+  if (request.method === "GET" && path.startsWith("/api/product-images/")) {
+    return serveProductImage(request, env, path);
+  }
+
+  if (request.method === "POST" && path === "/api/admin/login") {
+    const body = await readJson(request);
+    const session = await createAdminSession(env, body.key);
+    return json(request, env, 200, session);
+  }
+
+  if (request.method === "POST" && path === "/api/admin/logout") {
+    const session = await requireAdmin(request, env, { allowApiKey: false });
+    if (session?.tokenHash) {
+      await env.DB.prepare("DELETE FROM admin_sessions WHERE token_hash = ?").bind(session.tokenHash).run();
+    }
+    return json(request, env, 200, { ok: true });
+  }
+
+  if (request.method === "GET" && path === "/api/admin/products") {
+    await requireAdmin(request, env);
+    const includeArchived = url.searchParams.get("include_archived") === "1";
+    const products = await loadAdminProducts(env, url.origin, { includeArchived });
+    return json(request, env, 200, {
+      products,
+      summary: summarizeAdminProducts(products),
+      image_upload_enabled: Boolean(env.PRODUCT_IMAGES),
+    });
+  }
+
+  if (request.method === "GET" && path === "/api/admin/catalog/export") {
+    await requireAdmin(request, env);
+    const products = await loadAdminProducts(env, url.origin, { includeArchived: false });
+    const exported = products.map(adminProductToCatalogJson);
+    return new Response(JSON.stringify(exported, null, 2), {
+      status: 200,
+      headers: {
+        ...corsHeaders(request, env),
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="catalogo-silly-cat-${new Date().toISOString().slice(0, 10)}.json"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  if (request.method === "POST" && path === "/api/admin/products") {
+    await requireAdmin(request, env);
+    const body = await readJson(request);
+    const product = await createAdminProduct(env, body, url.origin);
+    return json(request, env, 201, product);
+  }
+
+  const adminProductMatch = path.match(/^\/api\/admin\/products\/([^/]+)$/);
+  if (adminProductMatch && request.method === "PUT") {
+    await requireAdmin(request, env);
+    const id = decodeURIComponent(adminProductMatch[1]);
+    const body = await readJson(request);
+    const product = await updateAdminProduct(env, id, body, url.origin);
+    return json(request, env, 200, product);
+  }
+
+  if (adminProductMatch && request.method === "DELETE") {
+    await requireAdmin(request, env);
+    const id = decodeURIComponent(adminProductMatch[1]);
+    await setProductActive(env, id, false);
+    return json(request, env, 200, { ok: true, id, active: false });
+  }
+
+  const restoreProductMatch = path.match(/^\/api\/admin\/products\/([^/]+)\/restore$/);
+  if (restoreProductMatch && request.method === "POST") {
+    await requireAdmin(request, env);
+    const id = decodeURIComponent(restoreProductMatch[1]);
+    await setProductActive(env, id, true);
+    return json(request, env, 200, { ok: true, id, active: true });
+  }
+
+  const productImageMatch = path.match(/^\/api\/admin\/products\/([^/]+)\/image$/);
+  if (productImageMatch && request.method === "POST") {
+    await requireAdmin(request, env);
+    const id = decodeURIComponent(productImageMatch[1]);
+    const product = await uploadProductImage(request, env, id, url.origin);
+    return json(request, env, 200, product);
+  }
+
+  const historyProductMatch = path.match(/^\/api\/admin\/products\/([^/]+)\/inventory-history$/);
+  if (historyProductMatch && request.method === "GET") {
+    await requireAdmin(request, env);
+    const id = decodeURIComponent(historyProductMatch[1]);
+    const history = await getInventoryHistory(env, id);
+    return json(request, env, 200, { product_id: id, history });
+  }
+
   if (request.method === "GET" && path === "/api/catalog") {
-    const catalog = await loadEffectiveCatalog(env);
+    const catalog = await loadEffectiveCatalog(env, url.origin);
     const safe = catalog.map(({ frete, ...product }) => ({
       ...product,
       tag: Number(product.estoque) <= 0 ? "Esgotado" : product.tag,
@@ -53,7 +147,7 @@ async function route(request, env, ctx) {
 
   if (request.method === "POST" && path === "/api/shipping/quote") {
     const body = await readJson(request);
-    const catalog = await loadEffectiveCatalog(env);
+    const catalog = await loadEffectiveCatalog(env, url.origin);
     const cart = resolveCart(body.items, catalog);
     const result = await quoteShipping(env, cart, body.postalCode);
     return json(request, env, 200, {
@@ -65,7 +159,7 @@ async function route(request, env, ctx) {
 
   if (request.method === "POST" && path === "/api/checkout") {
     const body = await readJson(request);
-    const catalog = await loadEffectiveCatalog(env);
+    const catalog = await loadEffectiveCatalog(env, url.origin);
     const cart = resolveCart(body.items, catalog);
     const orderInput = validateOrderInput(body);
     const quote = await quoteShipping(env, cart, orderInput.address.cep);
@@ -141,7 +235,7 @@ async function route(request, env, ctx) {
 
   const adminLabelMatch = path.match(/^\/api\/admin\/orders\/([^/]+)\/label$/);
   if (adminLabelMatch && ["GET", "POST"].includes(request.method)) {
-    requireAdmin(request, env);
+    await requireAdmin(request, env);
     const orderNsu = decodeURIComponent(adminLabelMatch[1]);
     const order = await getOrder(env, orderNsu);
     if (!order) throw httpError(404, "Pedido não encontrado.");
@@ -224,6 +318,61 @@ async function ensureInventorySchema(env) {
   inventorySchemaReady = true;
 }
 
+async function ensureAdminCatalogSchema(env) {
+  if (adminCatalogSchemaReady) return;
+  await ensureInventorySchema(env);
+  await env.DB.batch([
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS products (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        price_cents INTEGER NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        image_ref TEXT,
+        tag TEXT,
+        width_cm REAL NOT NULL,
+        height_cm REAL NOT NULL,
+        length_cm REAL NOT NULL,
+        weight_kg REAL NOT NULL,
+        shipping_provisional INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS inventory_adjustments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id TEXT NOT NULL,
+        old_stock INTEGER NOT NULL,
+        new_stock INTEGER NOT NULL,
+        delta INTEGER NOT NULL,
+        reason TEXT,
+        created_at TEXT NOT NULL
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        token_hash TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `),
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_products_active_sort ON products(active, sort_order, name)`),
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_product ON inventory_adjustments(product_id, created_at)`),
+    env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at)`),
+  ]);
+  adminCatalogSchemaReady = true;
+}
+
 function sourceStock(product) {
   const value = Number(product?.estoque ?? 1);
   if (!Number.isFinite(value)) return 0;
@@ -231,76 +380,83 @@ function sourceStock(product) {
 }
 
 function catalogStockKey(product) {
-  // estoque_revisao é opcional. Ele serve apenas para o caso raro em que
-  // você queira repor exatamente a mesma quantidade original de um produto
-  // já vendido. Ex.: estoque continua 1 no JSON, mas o D1 já baixou para 0;
-  // mudar estoque_revisao de 0 para 1 força uma reposição para 1.
   return `${sourceStock(product)}:${clean(product?.estoque_revisao ?? "0", 80)}`;
 }
 
 async function loadSourceCatalog(env) {
   const storeUrl = String(env.STORE_URL || env.STORE_ORIGIN || "https://www.sillycatcroche.shop").replace(/\/$/, "");
   const url = `${storeUrl}/catalogo.json?sc=${Date.now()}`;
-
   try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json", "Cache-Control": "no-cache" },
-    });
+    const response = await fetch(url, { headers: { Accept: "application/json", "Cache-Control": "no-cache" } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (!Array.isArray(data)) throw new Error("catalogo.json não retornou uma lista.");
     return data;
   } catch (error) {
-    console.warn("[catalogo] Falha ao buscar catálogo publicado; usando cópia embarcada.", error?.message || error);
-    return bundledCatalog;
+    console.error("[catalogo seed] Falha ao buscar o catálogo publicado.", error?.message || error);
+    if (/^(1|true|yes|on)$/i.test(String(env.ALLOW_BUNDLED_CATALOG_SEED || "false"))) return bundledCatalog;
+    throw httpError(503, "Não foi possível importar o catálogo publicado para o D1. Tente novamente quando www.sillycatcroche.shop/catalogo.json estiver acessível.");
   }
 }
 
-async function syncInventory(env, catalog) {
-  await ensureInventorySchema(env);
-  const result = await env.DB.prepare("SELECT product_id, stock, catalog_stock_key FROM inventory").all();
-  const rows = new Map((result.results || []).map((row) => [String(row.product_id), row]));
-  const statements = [];
+async function ensureProductsSeeded(env) {
+  await ensureAdminCatalogSchema(env);
+  const seeded = await env.DB.prepare("SELECT value FROM app_meta WHERE key = 'catalog_seeded' LIMIT 1").first();
+  if (seeded?.value === "1") return;
+
+  const catalog = await loadSourceCatalog(env);
   const timestamp = nowIso();
+  const statements = [];
 
-  for (const product of catalog) {
-    const id = clean(product?.id, 100);
-    if (!id) continue;
-    const key = catalogStockKey(product);
+  catalog.forEach((product, index) => {
+    const id = normalizeProductId(product?.id);
+    if (!id) return;
+    const frete = product?.frete || {};
+    const tag = normalizeStoredTag(product?.tag);
+    const width = positiveNumber(frete.largura, 1);
+    const height = positiveNumber(frete.altura, 1);
+    const length = positiveNumber(frete.comprimento, 1);
+    const weight = positiveNumber(frete.peso, 0.01);
+    const price = Math.max(0, Math.round(Number(product?.preco_centavos || 0)));
     const stock = sourceStock(product);
-    const existing = rows.get(id);
 
-    if (!existing) {
-      statements.push(env.DB.prepare(`
-        INSERT INTO inventory (product_id, stock, catalog_stock_key, updated_at)
-        VALUES (?, ?, ?, ?)
-      `).bind(id, stock, key, timestamp));
-    } else if (String(existing.catalog_stock_key) !== key) {
-      // Uma alteração explícita de estoque (ou estoque_revisao) no catálogo
-      // é tratada como reposição/ajuste manual e passa a ser o novo saldo.
-      statements.push(env.DB.prepare(`
-        UPDATE inventory SET stock = ?, catalog_stock_key = ?, updated_at = ?
-        WHERE product_id = ?
-      `).bind(stock, key, timestamp, id));
-    }
-  }
+    statements.push(env.DB.prepare(`
+      INSERT OR IGNORE INTO products (
+        id, name, price_cents, description, image_ref, tag,
+        width_cm, height_cm, length_cm, weight_kg, shipping_provisional,
+        active, sort_order, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+    `).bind(
+      id, clean(product?.nome, 160) || id, price, clean(product?.desc, 1000), clean(product?.img, 500) || null, tag,
+      width, height, length, weight, frete.provisorio ? 1 : 0,
+      index, timestamp, timestamp
+    ));
+
+    statements.push(env.DB.prepare(`
+      INSERT OR IGNORE INTO inventory (product_id, stock, catalog_stock_key, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).bind(id, stock, catalogStockKey(product), timestamp));
+  });
+
+  statements.push(env.DB.prepare(`
+    INSERT INTO app_meta (key, value, updated_at) VALUES ('catalog_seeded', '1', ?)
+    ON CONFLICT(key) DO UPDATE SET value = '1', updated_at = excluded.updated_at
+  `).bind(timestamp));
 
   if (statements.length) await env.DB.batch(statements);
 }
 
-async function loadEffectiveCatalog(env) {
-  const catalog = await loadSourceCatalog(env);
-  await syncInventory(env, catalog);
-  // Também reconcilia vendas pagas que já existiam antes da v2.1 (como a
-  // compra de teste usada para validar o fluxo ponta a ponta).
+async function loadEffectiveCatalog(env, apiOrigin) {
+  await ensureProductsSeeded(env);
   await reconcilePaidStock(env);
-  const result = await env.DB.prepare("SELECT product_id, stock FROM inventory").all();
-  const stockMap = new Map((result.results || []).map((row) => [String(row.product_id), Number(row.stock)]));
-
-  return catalog.map((product) => ({
-    ...product,
-    estoque: Math.max(0, Number(stockMap.get(String(product.id)) ?? sourceStock(product))),
-  }));
+  const result = await env.DB.prepare(`
+    SELECT p.*, COALESCE(i.stock, 0) AS stock
+    FROM products p
+    LEFT JOIN inventory i ON i.product_id = p.id
+    WHERE p.active = 1
+    ORDER BY p.sort_order ASC, p.created_at ASC, p.name COLLATE NOCASE ASC
+  `).all();
+  return (result.results || []).map((row) => dbProductToPublic(row, apiOrigin));
 }
 
 async function reconcilePaidStock(env) {
@@ -315,49 +471,65 @@ async function reconcilePaidStock(env) {
     ORDER BY o.paid_at ASC
     LIMIT 100
   `).all();
-
-  for (const row of pending.results || []) {
-    await applyStockForPaidOrder(env, String(row.order_nsu));
-  }
+  for (const row of pending.results || []) await applyStockForPaidOrder(env, String(row.order_nsu));
 }
 
 async function applyStockForPaidOrder(env, orderNsu) {
-  await ensureInventorySchema(env);
+  await ensureProductsSeeded(env);
   const items = await getOrderItems(env, orderNsu);
   if (!items.length) return;
-
-  // Garante que produtos novos já tenham uma linha de estoque antes de
-  // aplicar a baixa. O catálogo publicado é a fonte de metadados e estoque
-  // inicial; o D1 passa a controlar o saldo vivo após a primeira venda.
-  const catalog = await loadSourceCatalog(env);
-  await syncInventory(env, catalog);
 
   const timestamp = nowIso();
   const statements = [];
   for (const item of items) {
     const quantity = Math.max(1, Number(item.quantity || 1));
     const productId = String(item.product_id);
-
-    // O UPDATE só desconta quando ainda não existe movimento para este
-    // pedido/produto. Em seguida o INSERT OR IGNORE grava o marcador.
-    // Como D1 batch é transacional, a operação fica idempotente.
     statements.push(env.DB.prepare(`
       UPDATE inventory
-      SET stock = MAX(0, stock - ?), updated_at = ?
+      SET stock = MAX(0, stock - ?), catalog_stock_key = ?, updated_at = ?
       WHERE product_id = ?
         AND NOT EXISTS (
           SELECT 1 FROM inventory_movements
           WHERE order_nsu = ? AND product_id = ?
         )
-    `).bind(quantity, timestamp, productId, orderNsu, productId));
-
+    `).bind(quantity, `sale:${orderNsu}`, timestamp, productId, orderNsu, productId));
     statements.push(env.DB.prepare(`
       INSERT OR IGNORE INTO inventory_movements (order_nsu, product_id, quantity, created_at)
       VALUES (?, ?, ?, ?)
     `).bind(orderNsu, productId, quantity, timestamp));
   }
-
   await env.DB.batch(statements);
+}
+
+function dbProductToPublic(row, apiOrigin) {
+  const stock = Math.max(0, Number(row.stock || 0));
+  return {
+    id: row.id,
+    nome: row.name,
+    preco_centavos: Number(row.price_cents),
+    desc: row.description || "",
+    img: resolveProductImage(row.image_ref, apiOrigin),
+    tag: stock <= 0 ? "Esgotado" : (row.tag || undefined),
+    estoque: stock,
+    frete: {
+      largura: Number(row.width_cm),
+      altura: Number(row.height_cm),
+      comprimento: Number(row.length_cm),
+      peso: Number(row.weight_kg),
+      provisorio: Boolean(row.shipping_provisional),
+    },
+  };
+}
+
+function resolveProductImage(imageRef, apiOrigin) {
+  const ref = String(imageRef || "").trim();
+  if (!ref) return "";
+  if (ref.startsWith("r2:")) {
+    const key = ref.slice(3);
+    const encoded = key.split("/").map(encodeURIComponent).join("/");
+    return `${String(apiOrigin || "").replace(/\/$/, "")}/api/product-images/${encoded}`;
+  }
+  return ref;
 }
 
 function validateOrderInput(body) {
@@ -1139,11 +1311,43 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function requireAdmin(request, env) {
+async function createAdminSession(env, providedKey) {
   requireConfig("ADMIN_API_KEY", env.ADMIN_API_KEY);
-  const provided = String(request.headers.get("X-Admin-Key") || "");
+  const provided = String(providedKey || "");
   const expected = String(env.ADMIN_API_KEY || "");
-  if (!constantTimeEqual(provided, expected)) throw httpError(401, "Não autorizado.");
+  if (!constantTimeEqual(provided, expected)) throw httpError(401, "Chave administrativa inválida.");
+
+  await ensureAdminCatalogSchema(env);
+  const now = Date.now();
+  const expiresAt = new Date(now + 12 * 60 * 60 * 1000).toISOString();
+  const token = randomToken(32);
+  const tokenHash = await sha256Hex(token);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at < ?").bind(new Date(now).toISOString()),
+    env.DB.prepare("INSERT INTO admin_sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)")
+      .bind(tokenHash, new Date(now).toISOString(), expiresAt),
+  ]);
+  return { token, expires_at: expiresAt };
+}
+
+async function requireAdmin(request, env, { allowApiKey = true } = {}) {
+  requireConfig("ADMIN_API_KEY", env.ADMIN_API_KEY);
+  if (allowApiKey) {
+    const providedKey = String(request.headers.get("X-Admin-Key") || "");
+    if (providedKey && constantTimeEqual(providedKey, String(env.ADMIN_API_KEY || ""))) return { via: "api_key" };
+  }
+
+  const auth = String(request.headers.get("Authorization") || "");
+  const token = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  if (!token) throw httpError(401, "Sessão administrativa ausente.");
+  await ensureAdminCatalogSchema(env);
+  const tokenHash = await sha256Hex(token);
+  const session = await env.DB.prepare(`
+    SELECT token_hash, expires_at FROM admin_sessions
+    WHERE token_hash = ? AND expires_at > ? LIMIT 1
+  `).bind(tokenHash, nowIso()).first();
+  if (!session) throw httpError(401, "Sessão administrativa expirada ou inválida.");
+  return { via: "session", tokenHash };
 }
 
 function constantTimeEqual(a, b) {
@@ -1151,6 +1355,293 @@ function constantTimeEqual(a, b) {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+function randomToken(bytesLength = 32) {
+  const bytes = new Uint8Array(bytesLength);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value)));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function normalizeProductId(value) {
+  const id = String(value || "").trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9-]{0,99}$/.test(id) ? id : "";
+}
+
+function normalizeStoredTag(value) {
+  const tag = String(value || "").trim().toLowerCase();
+  return tag === "novo" ? "Novo" : null;
+}
+
+function positiveNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function sanitizeImageRef(value) {
+  const ref = String(value || "").trim().slice(0, 500);
+  if (!ref) return null;
+  if (ref.startsWith("r2:")) return /^r2:[a-zA-Z0-9/_\-.]+$/.test(ref) ? ref : null;
+  if (/^https:\/\//i.test(ref)) return ref;
+  if (/^(?:\.\/)?(?:img|images)\/[a-zA-Z0-9/_\-.% ]+$/i.test(ref)) return ref.replace(/^\.\//, "");
+  throw httpError(400, "A imagem deve ser um caminho img/... ou uma URL https:// válida.");
+}
+
+function validateAdminProductPayload(body, { creating = false } = {}) {
+  const id = creating ? normalizeProductId(body.id) : null;
+  if (creating && !id) throw httpError(400, "O ID deve conter apenas letras minúsculas, números e hífens.");
+  const name = clean(body.name ?? body.nome, 160);
+  const description = clean(body.description ?? body.desc, 1000);
+  const priceCents = Number(body.price_cents ?? body.preco_centavos);
+  const stock = Number(body.stock ?? body.estoque);
+  const width = Number(body.width_cm ?? body.frete?.largura);
+  const height = Number(body.height_cm ?? body.frete?.altura);
+  const length = Number(body.length_cm ?? body.frete?.comprimento);
+  const weight = Number(body.weight_kg ?? body.frete?.peso);
+  const sortOrder = Number(body.sort_order ?? 0);
+  const imageRef = sanitizeImageRef(body.image_ref ?? body.img ?? "");
+  const tag = normalizeStoredTag(body.tag);
+  const active = body.active === false || body.active === 0 ? 0 : 1;
+  const shippingProvisional = body.shipping_provisional ?? body.frete?.provisorio ? 1 : 0;
+
+  if (!name) throw httpError(400, "Informe o nome do produto.");
+  if (!Number.isInteger(priceCents) || priceCents < 0) throw httpError(400, "Preço inválido.");
+  if (!Number.isInteger(stock) || stock < 0 || stock > 9999) throw httpError(400, "Estoque inválido.");
+  if (!(width > 0 && height > 0 && length > 0 && weight > 0)) throw httpError(400, "Preencha dimensões e peso maiores que zero.");
+  if (!Number.isInteger(sortOrder) || sortOrder < -9999 || sortOrder > 9999) throw httpError(400, "Ordem de exibição inválida.");
+
+  return { id, name, description, priceCents, stock, width, height, length, weight, sortOrder, imageRef, tag, active, shippingProvisional };
+}
+
+async function loadAdminProducts(env, apiOrigin, { includeArchived = true } = {}) {
+  await ensureProductsSeeded(env);
+  const where = includeArchived ? "" : "WHERE p.active = 1";
+  const result = await env.DB.prepare(`
+    SELECT p.*, COALESCE(i.stock, 0) AS stock
+    FROM products p LEFT JOIN inventory i ON i.product_id = p.id
+    ${where}
+    ORDER BY p.active DESC, p.sort_order ASC, p.name COLLATE NOCASE ASC
+  `).all();
+  return (result.results || []).map((row) => ({
+    ...dbProductToPublic(row, apiOrigin),
+    image_ref: row.image_ref || "",
+    active: Boolean(row.active),
+    sort_order: Number(row.sort_order || 0),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+}
+
+function summarizeAdminProducts(products) {
+  const active = products.filter((product) => product.active);
+  return {
+    total: products.length,
+    active: active.length,
+    available: active.filter((product) => Number(product.estoque) > 0).length,
+    sold_out: active.filter((product) => Number(product.estoque) <= 0).length,
+    archived: products.filter((product) => !product.active).length,
+    units: active.reduce((sum, product) => sum + Number(product.estoque || 0), 0),
+  };
+}
+
+async function createAdminProduct(env, body, apiOrigin) {
+  await ensureProductsSeeded(env);
+  const data = validateAdminProductPayload(body, { creating: true });
+  const existing = await env.DB.prepare("SELECT id FROM products WHERE id = ? LIMIT 1").bind(data.id).first();
+  if (existing) throw httpError(409, "Já existe um produto com esse ID.");
+  const timestamp = nowIso();
+  await env.DB.batch([
+    env.DB.prepare(`
+      INSERT INTO products (
+        id, name, price_cents, description, image_ref, tag,
+        width_cm, height_cm, length_cm, weight_kg, shipping_provisional,
+        active, sort_order, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      data.id, data.name, data.priceCents, data.description, data.imageRef, data.tag,
+      data.width, data.height, data.length, data.weight, data.shippingProvisional,
+      data.active, data.sortOrder, timestamp, timestamp
+    ),
+    env.DB.prepare(`
+      INSERT INTO inventory (product_id, stock, catalog_stock_key, updated_at) VALUES (?, ?, ?, ?)
+    `).bind(data.id, data.stock, `admin:${timestamp}`, timestamp),
+    env.DB.prepare(`
+      INSERT INTO inventory_adjustments (product_id, old_stock, new_stock, delta, reason, created_at)
+      VALUES (?, 0, ?, ?, 'Cadastro inicial', ?)
+    `).bind(data.id, data.stock, data.stock, timestamp),
+  ]);
+  return getAdminProduct(env, data.id, apiOrigin);
+}
+
+async function updateAdminProduct(env, id, body, apiOrigin) {
+  await ensureProductsSeeded(env);
+  const productId = normalizeProductId(id);
+  if (!productId) throw httpError(400, "Produto inválido.");
+  const existing = await env.DB.prepare(`
+    SELECT p.*, COALESCE(i.stock, 0) AS stock
+    FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.id = ? LIMIT 1
+  `).bind(productId).first();
+  if (!existing) throw httpError(404, "Produto não encontrado.");
+
+  const merged = {
+    ...body,
+    name: body.name ?? existing.name,
+    description: body.description ?? existing.description,
+    price_cents: body.price_cents ?? existing.price_cents,
+    stock: body.stock ?? existing.stock,
+    width_cm: body.width_cm ?? existing.width_cm,
+    height_cm: body.height_cm ?? existing.height_cm,
+    length_cm: body.length_cm ?? existing.length_cm,
+    weight_kg: body.weight_kg ?? existing.weight_kg,
+    sort_order: body.sort_order ?? existing.sort_order,
+    image_ref: body.image_ref === undefined ? existing.image_ref : body.image_ref,
+    tag: body.tag === undefined ? existing.tag : body.tag,
+    active: body.active === undefined ? Boolean(existing.active) : body.active,
+    shipping_provisional: body.shipping_provisional === undefined ? Boolean(existing.shipping_provisional) : body.shipping_provisional,
+  };
+  const data = validateAdminProductPayload(merged, { creating: false });
+  const oldStock = Number(existing.stock || 0);
+  const timestamp = nowIso();
+  const statements = [
+    env.DB.prepare(`
+      UPDATE products SET
+        name = ?, price_cents = ?, description = ?, image_ref = ?, tag = ?,
+        width_cm = ?, height_cm = ?, length_cm = ?, weight_kg = ?, shipping_provisional = ?,
+        active = ?, sort_order = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(
+      data.name, data.priceCents, data.description, data.imageRef, data.tag,
+      data.width, data.height, data.length, data.weight, data.shippingProvisional,
+      data.active, data.sortOrder, timestamp, productId
+    ),
+  ];
+  if (oldStock !== data.stock) {
+    statements.push(env.DB.prepare(`
+      UPDATE inventory SET stock = ?, catalog_stock_key = ?, updated_at = ? WHERE product_id = ?
+    `).bind(data.stock, `admin:${timestamp}`, timestamp, productId));
+    statements.push(env.DB.prepare(`
+      INSERT INTO inventory_adjustments (product_id, old_stock, new_stock, delta, reason, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(productId, oldStock, data.stock, data.stock - oldStock, clean(body.stock_reason, 250) || "Ajuste manual", timestamp));
+  }
+  await env.DB.batch(statements);
+  return getAdminProduct(env, productId, apiOrigin);
+}
+
+async function getAdminProduct(env, id, apiOrigin) {
+  const row = await env.DB.prepare(`
+    SELECT p.*, COALESCE(i.stock, 0) AS stock
+    FROM products p LEFT JOIN inventory i ON i.product_id = p.id WHERE p.id = ? LIMIT 1
+  `).bind(id).first();
+  if (!row) throw httpError(404, "Produto não encontrado.");
+  return {
+    ...dbProductToPublic(row, apiOrigin),
+    image_ref: row.image_ref || "",
+    active: Boolean(row.active),
+    sort_order: Number(row.sort_order || 0),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+async function setProductActive(env, id, active) {
+  await ensureProductsSeeded(env);
+  const productId = normalizeProductId(id);
+  if (!productId) throw httpError(400, "Produto inválido.");
+  const result = await env.DB.prepare("UPDATE products SET active = ?, updated_at = ? WHERE id = ?")
+    .bind(active ? 1 : 0, nowIso(), productId).run();
+  if (!Number(result?.meta?.changes || 0)) throw httpError(404, "Produto não encontrado.");
+}
+
+async function uploadProductImage(request, env, id, apiOrigin) {
+  await ensureProductsSeeded(env);
+  if (!env.PRODUCT_IMAGES) throw httpError(503, "Upload de imagens não configurado. Adicione o binding R2 PRODUCT_IMAGES ao Worker.");
+  const productId = normalizeProductId(id);
+  if (!productId) throw httpError(400, "Produto inválido.");
+  const existing = await env.DB.prepare("SELECT image_ref FROM products WHERE id = ? LIMIT 1").bind(productId).first();
+  if (!existing) throw httpError(404, "Produto não encontrado.");
+
+  const contentType = String(request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+  const extensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+  const ext = extensions[contentType];
+  if (!ext) throw httpError(415, "Formato não suportado. Use JPG, PNG, WebP ou GIF.");
+  const bytes = await request.arrayBuffer();
+  if (!bytes.byteLength) throw httpError(400, "Imagem vazia.");
+  if (bytes.byteLength > 6 * 1024 * 1024) throw httpError(413, "A imagem deve ter no máximo 6 MB.");
+
+  const key = `products/${productId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+  await env.PRODUCT_IMAGES.put(key, bytes, {
+    httpMetadata: { contentType, cacheControl: "public, max-age=31536000, immutable" },
+    customMetadata: { productId },
+  });
+  const imageRef = `r2:${key}`;
+  await env.DB.prepare("UPDATE products SET image_ref = ?, updated_at = ? WHERE id = ?")
+    .bind(imageRef, nowIso(), productId).run();
+
+  const previous = String(existing.image_ref || "");
+  if (previous.startsWith("r2:") && previous !== imageRef) {
+    await env.PRODUCT_IMAGES.delete(previous.slice(3)).catch(() => {});
+  }
+  return getAdminProduct(env, productId, apiOrigin);
+}
+
+async function serveProductImage(request, env, path) {
+  if (!env.PRODUCT_IMAGES) return new Response("Imagem não encontrada.", { status: 404 });
+  const prefix = "/api/product-images/";
+  let key;
+  try { key = path.slice(prefix.length).split("/").map(decodeURIComponent).join("/"); }
+  catch { return new Response("Imagem inválida.", { status: 400 }); }
+  if (!key || key.includes("..")) return new Response("Imagem inválida.", { status: 400 });
+  const object = await env.PRODUCT_IMAGES.get(key);
+  if (!object) return new Response("Imagem não encontrada.", { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("etag", object.httpEtag);
+  headers.set("Cache-Control", headers.get("Cache-Control") || "public, max-age=31536000, immutable");
+  return new Response(object.body, { headers });
+}
+
+async function getInventoryHistory(env, productId) {
+  await ensureAdminCatalogSchema(env);
+  const adjustments = await env.DB.prepare(`
+    SELECT 'adjustment' AS kind, id AS ref, old_stock, new_stock, delta, reason, created_at
+    FROM inventory_adjustments WHERE product_id = ? ORDER BY created_at DESC LIMIT 50
+  `).bind(productId).all();
+  const sales = await env.DB.prepare(`
+    SELECT 'sale' AS kind, order_nsu AS ref, NULL AS old_stock, NULL AS new_stock,
+           -quantity AS delta, 'Venda confirmada' AS reason, created_at
+    FROM inventory_movements WHERE product_id = ? ORDER BY created_at DESC LIMIT 50
+  `).bind(productId).all();
+  return [...(adjustments.results || []), ...(sales.results || [])]
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, 60);
+}
+
+function adminProductToCatalogJson(product) {
+  const result = {
+    id: product.id,
+    nome: product.nome,
+    preco_centavos: Number(product.preco_centavos),
+    desc: product.desc || "",
+    img: product.image_ref || product.img || "",
+  };
+  if (String(product.tag || "").toLowerCase() === "novo") result.tag = "Novo";
+  result.estoque = Number(product.estoque || 0);
+  result.frete = {
+    largura: Number(product.frete?.largura),
+    altura: Number(product.frete?.altura),
+    comprimento: Number(product.frete?.comprimento),
+    peso: Number(product.frete?.peso),
+    provisorio: Boolean(product.frete?.provisorio),
+  };
+  return result;
 }
 
 async function maybeSendSaleNotification(env, orderNsu) {
@@ -1401,8 +1892,8 @@ function corsHeaders(request, env) {
   return {
     "Access-Control-Allow-Origin": origin,
     Vary: "Origin",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Key",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
   };
 }
 

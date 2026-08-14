@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Administração · Silly Cat</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <main class="admin-shell">
+    <section class="login-panel" id="loginPanel" aria-labelledby="loginTitle">
+      <div class="login-brand">
+        <img src="img/logo-sillycat.jpg" alt="Silly Cat">
+        <div>
+          <p class="eyebrow">Área privada</p>
+          <h1 id="loginTitle">Silly Cat Admin</h1>
+        </div>
+      </div>
+      <p class="login-copy">Gerencie produtos, estoque, medidas de frete e imagens sem editar arquivos do site.</p>
+      <form id="loginForm" class="login-form">
+        <label for="adminKey">Chave administrativa</label>
+        <div class="password-row">
+          <input id="adminKey" name="adminKey" type="password" autocomplete="current-password" required>
+          <button type="button" class="icon-btn" id="togglePassword" aria-label="Mostrar ou ocultar chave">◉</button>
+        </div>
+        <button class="primary-btn" type="submit" id="loginButton">Entrar</button>
+        <p class="form-message" id="loginMessage" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section class="dashboard" id="dashboard" hidden>
+      <header class="admin-header">
+        <div class="admin-brand">
+          <img src="img/logo-sillycat.jpg" alt="">
+          <div>
+            <p class="eyebrow">Painel privado</p>
+            <h1>Inventário Silly Cat</h1>
+          </div>
+        </div>
+        <div class="header-actions">
+          <a class="ghost-btn" href="index.html" target="_blank" rel="noopener">Ver loja ↗</a>
+          <button class="ghost-btn" type="button" id="logoutButton">Sair</button>
+        </div>
+      </header>
+
+      <section class="metrics" aria-label="Resumo do inventário">
+        <article class="metric"><span>Produtos ativos</span><strong id="metricActive">—</strong></article>
+        <article class="metric"><span>Unidades disponíveis</span><strong id="metricUnits">—</strong></article>
+        <article class="metric"><span>Esgotados</span><strong id="metricSoldOut">—</strong></article>
+        <article class="metric"><span>Arquivados</span><strong id="metricArchived">—</strong></article>
+      </section>
+
+      <section class="toolbar" aria-label="Ferramentas do catálogo">
+        <div class="search-wrap">
+          <label for="searchInput">Buscar produto</label>
+          <input id="searchInput" type="search" placeholder="Nome ou ID…" autocomplete="off">
+        </div>
+        <div class="filter-wrap">
+          <label for="statusFilter">Exibir</label>
+          <select id="statusFilter">
+            <option value="active">Ativos</option>
+            <option value="available">Disponíveis</option>
+            <option value="soldout">Esgotados</option>
+            <option value="archived">Arquivados</option>
+            <option value="all">Todos</option>
+          </select>
+        </div>
+        <div class="toolbar-actions">
+          <button class="ghost-btn" type="button" id="refreshButton">Atualizar</button>
+          <button class="ghost-btn" type="button" id="exportButton">Exportar JSON</button>
+          <button class="primary-btn" type="button" id="newProductButton">+ Novo produto</button>
+        </div>
+      </section>
+
+      <div class="notice" id="imageNotice" hidden></div>
+      <div class="status-line" id="statusLine" aria-live="polite"></div>
+
+      <section class="product-list" id="productList" aria-live="polite"></section>
+      <div class="empty-state" id="emptyState" hidden>Nenhum produto corresponde ao filtro.</div>
+    </section>
+  </main>
+
+  <dialog id="productDialog" class="admin-dialog">
+    <form method="dialog" class="dialog-card" id="productForm">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow" id="dialogEyebrow">Produto</p>
+          <h2 id="dialogTitle">Editar produto</h2>
+        </div>
+        <button class="dialog-close" type="button" id="closeProductDialog" aria-label="Fechar">×</button>
+      </div>
+
+      <div class="editor-grid">
+        <section class="editor-section">
+          <h3>Informações</h3>
+          <label>ID do produto
+            <input id="productId" type="text" maxlength="100" pattern="[a-z0-9][a-z0-9-]*" placeholder="gatinho-rosa" required>
+            <small>Usado internamente. Não pode ser alterado depois do cadastro.</small>
+          </label>
+          <label>Nome
+            <input id="productName" type="text" maxlength="160" required>
+          </label>
+          <label>Descrição
+            <textarea id="productDescription" maxlength="1000" rows="4"></textarea>
+          </label>
+          <div class="two-cols">
+            <label>Preço (R$)
+              <input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" required>
+            </label>
+            <label>Estoque
+              <input id="productStock" type="number" min="0" max="9999" step="1" inputmode="numeric" required>
+            </label>
+          </div>
+          <div class="two-cols">
+            <label>Etiqueta
+              <select id="productTag">
+                <option value="">Sem etiqueta</option>
+                <option value="Novo">NOVO</option>
+              </select>
+            </label>
+            <label>Ordem na loja
+              <input id="productSortOrder" type="number" min="-9999" max="9999" step="1" value="0">
+            </label>
+          </div>
+          <label class="check-row"><input id="productActive" type="checkbox" checked> Produto ativo na loja</label>
+        </section>
+
+        <section class="editor-section">
+          <h3>Frete</h3>
+          <div class="shipping-grid">
+            <label>Largura (cm)<input id="productWidth" type="number" min="0.1" step="0.1" required></label>
+            <label>Altura (cm)<input id="productHeight" type="number" min="0.1" step="0.1" required></label>
+            <label>Comprimento (cm)<input id="productLength" type="number" min="0.1" step="0.1" required></label>
+            <label>Peso (kg)<input id="productWeight" type="number" min="0.001" step="0.001" required></label>
+          </div>
+          <label class="check-row"><input id="productProvisional" type="checkbox"> Medidas provisórias</label>
+
+          <h3 class="image-heading">Imagem</h3>
+          <div class="image-editor">
+            <div class="image-preview" id="imagePreview"><span>Sem imagem</span></div>
+            <div class="image-controls">
+              <label>Caminho ou URL da imagem
+                <input id="productImageRef" type="text" maxlength="500" placeholder="img/produto.jpeg ou https://…">
+              </label>
+              <label>Enviar nova imagem
+                <input id="productImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+                <small id="imageUploadHelp">JPG, PNG, WebP ou GIF, até 6 MB.</small>
+              </label>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="dialog-actions">
+        <div class="danger-zone" id="dangerZone">
+          <button class="danger-btn" type="button" id="archiveProductButton">Arquivar produto</button>
+          <button class="ghost-btn" type="button" id="historyButton">Histórico de estoque</button>
+        </div>
+        <div class="save-actions">
+          <button class="ghost-btn" type="button" id="cancelProductButton">Cancelar</button>
+          <button class="primary-btn" type="submit" id="saveProductButton">Salvar</button>
+        </div>
+      </div>
+      <p class="form-message" id="productMessage" aria-live="polite"></p>
+    </form>
+  </dialog>
+
+  <dialog id="historyDialog" class="admin-dialog small-dialog">
+    <div class="dialog-card">
+      <div class="dialog-head">
+        <div><p class="eyebrow">Movimentações</p><h2 id="historyTitle">Histórico de estoque</h2></div>
+        <button class="dialog-close" type="button" id="closeHistoryDialog" aria-label="Fechar">×</button>
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </div>
+  </dialog>
+
+  <script src="ecommerce-config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

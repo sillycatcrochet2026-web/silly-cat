@@ -52,33 +52,22 @@ function normalizeProductTag(product){
 }
 
 async function loadCatalog(){
-  // Em produção o catálogo vem da API porque ela combina os dados do
-  // catalogo.json com o estoque vivo armazenado no D1. Assim uma venda
-  // confirmada aparece imediatamente como ESGOTADO sem precisar alterar
-  // o arquivo estático no GitHub. Se a API estiver indisponível, usamos
-  // catalogo.json como fallback de leitura para não deixar a vitrine vazia.
-  const sources = [apiUrl("/api/catalog"), "catalogo.json"].filter(Boolean);
-  let lastError = null;
-
-  for(const source of sources){
-    try{
-      const response = await fetch(source, {cache:"no-store"});
-      if(!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      if(!Array.isArray(data)) throw new Error("Catálogo inválido");
-      PRODUTOS = data;
-      return;
-    }catch(error){
-      lastError = error;
-      console.warn(`Não foi possível carregar o catálogo de ${source}`, error);
-    }
+  // Desde a v2.4 o D1 é a fonte de verdade do catálogo e do estoque.
+  // Não fazemos fallback para catalogo.json porque ele pode estar desatualizado
+  // em relação a vendas, arquivamentos e edições feitas no painel privado.
+  try{
+    const response = await fetch(apiUrl("/api/catalog"), {cache:"no-store"});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if(!Array.isArray(data)) throw new Error("Catálogo inválido");
+    PRODUTOS = data;
+  }catch(error){
+    console.error("Não foi possível carregar o catálogo", error);
+    PRODUTOS = [];
+    document.querySelectorAll("[data-products]").forEach(grid => {
+      grid.innerHTML = `<div class="catalog-error">Não conseguimos carregar o catálogo agora. Tente atualizar a página.</div>`;
+    });
   }
-
-  console.error("Não foi possível carregar o catálogo", lastError);
-  PRODUTOS = [];
-  document.querySelectorAll("[data-products]").forEach(grid => {
-    grid.innerHTML = `<div class="catalog-error">Não conseguimos carregar o catálogo agora. Tente atualizar a página.</div>`;
-  });
 }
 
 function productById(id){

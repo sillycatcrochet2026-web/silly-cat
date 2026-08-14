@@ -34,5 +34,11 @@
 			"database_id": "1b6b84a7-0bdc-43f8-aed4-6026c5922366",
 			"remote": true
 		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "PRODUCT_IMAGES",
+			"bucket_name": "silly-cat-product-images"
+		}
 	]
 }
