@@ -127,6 +127,17 @@
             </label>
           </div>
           <div class="two-cols">
+            <label>Categoria
+              <select id="productCategory">
+                <option value="gatos">Gatos</option>
+                <option value="snoopy">Snoopy</option>
+                <option value="galinhas">Galinhas</option>
+                <option value="flamulas">Flâmulas</option>
+                <option value="coelhos">Coelhos</option>
+                <option value="pokemons">Pokémons</option>
+                <option value="outros">Outros</option>
+              </select>
+            </label>
             <label>Etiqueta
               <select id="productTag">
                 <option value="">Sem etiqueta</option>
@@ -138,6 +149,12 @@
             </label>
           </div>
           <label class="check-row"><input id="productActive" type="checkbox" checked> Produto ativo na loja</label>
+
+          <div class="variant-editor">
+            <div class="editor-subhead"><div><h3>Variações</h3><small>Opcional. Cada variação possui seu próprio estoque; o preço pode herdar o preço base.</small></div><button class="ghost-btn small" type="button" id="addVariantButton">+ Adicionar variação</button></div>
+            <div id="variantRows" class="variant-rows"></div>
+            <p class="variant-empty-help" id="variantEmptyHelp">Sem variações: o estoque acima vale para o produto inteiro.</p>
+          </div>
         </section>
 
         <section class="editor-section">
@@ -150,16 +167,17 @@
           </div>
           <label class="check-row"><input id="productProvisional" type="checkbox"> Medidas provisórias</label>
 
-          <h3 class="image-heading">Imagem</h3>
-          <div class="image-editor">
-            <div class="image-preview" id="imagePreview"><span>Sem imagem</span></div>
+          <h3 class="image-heading">Imagens</h3>
+          <p class="field-help">A primeira imagem será a capa. Na loja, duas ou mais imagens aparecem em carrossel.</p>
+          <div class="image-editor multi-image-editor">
+            <div class="image-preview image-gallery-preview" id="imagePreview"><span>Sem imagem</span></div>
             <div class="image-controls">
-              <label>Caminho ou URL da imagem
-                <input id="productImageRef" type="text" maxlength="500" placeholder="img/produto.jpeg ou https://…">
+              <label>Caminhos/URLs das imagens <small>(uma por linha)</small>
+                <textarea id="productImageRefs" rows="4" placeholder="img/produto-frente.jpeg&#10;img/produto-lado.jpeg&#10;https://…"></textarea>
               </label>
-              <label>Enviar nova imagem
-                <input id="productImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
-                <small id="imageUploadHelp">JPG, PNG, WebP ou GIF, até 6 MB.</small>
+              <label>Enviar novas imagens
+                <input id="productImageFile" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif">
+                <small id="imageUploadHelp">JPG, PNG, WebP ou GIF, até 6 MB por imagem.</small>
               </label>
             </div>
           </div>
