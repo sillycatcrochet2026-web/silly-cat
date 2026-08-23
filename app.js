@@ -12,6 +12,8 @@ let SHIPPING_QUOTES = [];
 let SELECTED_SHIPPING_ID = null;
 let QUOTED_CEP = "";
 let SERVER_PRODUCTION_INFO = null;
+let COUPON_CODE = "";
+let COUPON_RESULT = null;
 let CATALOG_QUERY = "";
 let CATALOG_CATEGORY = "todos";
 let CHECKOUT_DATA = {
@@ -85,10 +87,13 @@ function productCard(product, index){
   const priceLabel = minPrice === maxPrice ? formatBRL(minPrice) : `A partir de ${formatBRL(minPrice)}`;
   const variantMarkup = variants.length ? `<label class="product-variant-field">Variação<select data-product-variant="${escapeHtml(product.id)}">${variants.map((v,i)=>`<option value="${escapeHtml(v.id)}" data-price="${effectivePrice(product,v)}" data-stock="${effectiveStock(product,v)}"${i===0?" selected":""}>${escapeHtml(v.nome)}${effectiveStock(product,v)<=0?" · sob encomenda":""}</option>`).join("")}</select></label>` : "";
   const madeToOrder = variants.length ? variants.every(v=>effectiveStock(product,v)<=0) : Number(product.estoque)<=0;
+  const ratingCount = Number(product.rating_count || 0);
+  const ratingMarkup = ratingCount > 0 ? `<button class="product-rating" type="button" data-show-reviews="${escapeHtml(product.id)}" aria-label="Ver melhores avaliações de ${escapeHtml(product.nome)}"><span aria-hidden="true">★</span> ${Number(product.rating_average || 0).toFixed(1).replace(".", ",")} <small>(${ratingCount})</small></button>` : "";
   return `<article class="product-card reveal" style="--i:${index}" data-product-card="${escapeHtml(product.id)}">
     ${carouselMarkup(product,index)}
     <div class="product-body">
       <h3 class="product-name">${escapeHtml(product.nome)}</h3>
+      ${ratingMarkup}
       <p class="product-desc">${escapeHtml(product.desc)}</p>
       <p class="price" data-product-price>${priceLabel}</p>
       ${variantMarkup}
@@ -151,6 +156,7 @@ function renderProducts(){
     if(card) card.querySelector("[data-product-price]").textContent=formatBRL(effectivePrice(product,variant));
     const button=card?.querySelector("[data-add-cart]"); if(button) button.textContent=effectiveStock(product,variant)<=0?"Encomendar":"Adicionar ao carrinho";
   }));
+  document.querySelectorAll("[data-show-reviews]").forEach(button=>button.addEventListener("click",()=>openProductReviews(button.dataset.showReviews)));
 }
 
 function loadCart(){
@@ -194,7 +200,7 @@ function localProductionInfo(){
   const units=items.reduce((s,i)=>s+i.production_quantity,0); return {required:units>0,units,production_days:units>0?7:0,dispatch_extra_days:units>0?3:0,items};
 }
 function currentProductionInfo(){ return SERVER_PRODUCTION_INFO || localProductionInfo(); }
-function resetShipping(){ SHIPPING_QUOTES=[]; SELECTED_SHIPPING_ID=null; QUOTED_CEP=""; SERVER_PRODUCTION_INFO=null; }
+function resetShipping(){ SHIPPING_QUOTES=[]; SELECTED_SHIPPING_ID=null; QUOTED_CEP=""; SERVER_PRODUCTION_INFO=null; COUPON_RESULT=null; }
 
 
 function captureCheckoutData(){
@@ -308,6 +314,10 @@ function renderCart(){
   document.querySelectorAll("[data-cart-plus]").forEach(btn=>btn.addEventListener("click",()=>changeCartQuantity(btn.dataset.cartPlus,1)));
   document.querySelectorAll("[data-cart-quantity]").forEach(input=>input.addEventListener("change",()=>setCartQuantity(input.dataset.cartQuantity,input.value)));
   document.getElementById("shippingForm")?.addEventListener("submit",calculateShipping);
+  document.getElementById("couponForm")?.addEventListener("submit",applyCoupon);
+  document.getElementById("couponCode")?.addEventListener("input",event=>{COUPON_CODE=event.target.value.toUpperCase().replace(/\s+/g,""); if(COUPON_RESULT?.code!==COUPON_CODE) COUPON_RESULT=null;});
+  document.getElementById("couponCode")?.addEventListener("change",()=>{if(!COUPON_RESULT)renderCart();});
+  document.getElementById("removeCouponButton")?.addEventListener("click",()=>{COUPON_CODE="";COUPON_RESULT=null;renderCart();});
   document.getElementById("checkoutButton")?.addEventListener("click",createCheckout);
   document.getElementById("checkoutCep")?.addEventListener("input",formatCepInput);
   document.getElementById("checkoutPhone")?.addEventListener("input",formatPhoneInput);
@@ -320,7 +330,8 @@ function renderCart(){
 function checkoutMarkup(){
   const subtotal = cartSubtotal();
   const freight = selectedShipping();
-  const total = subtotal + Number(freight?.preco_centavos || 0);
+  const discount = Number(COUPON_RESULT?.discount_cents || 0);
+  const total = Math.max(0, subtotal - discount) + Number(freight?.preco_centavos || 0);
   const production = currentProductionInfo();
   const productionNotice = production.required ? `
     <div class="production-notice" role="status">
@@ -350,6 +361,15 @@ function checkoutMarkup(){
   return `<div class="cart-checkout">
     <div class="cart-summary-row"><span>Subtotal</span><strong>${formatBRL(subtotal)}</strong></div>
     ${productionNotice}
+
+    <form class="coupon-form" id="couponForm">
+      <label for="couponCode">Cupom de desconto <small>(opcional)</small></label>
+      <div class="coupon-input-row">
+        <input id="couponCode" maxlength="40" autocomplete="off" placeholder="SEU-CUPOM" value="${escapeHtml(COUPON_CODE)}">
+        <button type="submit" class="soft-btn secondary" id="couponApplyButton">Aplicar</button>
+      </div>
+      ${COUPON_RESULT ? `<p class="coupon-message success">Cupom <b>${escapeHtml(COUPON_RESULT.code)}</b> aplicado: −${formatBRL(discount)} <button type="button" id="removeCouponButton">remover</button></p>` : `<p class="coupon-message" id="couponMessage">O desconto será validado com segurança no servidor.</p>`}
+    </form>
 
     <form class="shipping-form" id="shippingForm">
       <label for="checkoutCep">Calcular frete</label>
@@ -400,6 +420,7 @@ function checkoutMarkup(){
 
     <div class="cart-total-box">
       <div><span>Produtos</span><strong>${formatBRL(subtotal)}</strong></div>
+      ${discount > 0 ? `<div class="discount-line"><span>Desconto · ${escapeHtml(COUPON_RESULT.code)}</span><strong>−${formatBRL(discount)}</strong></div>` : ""}
       <div><span>Frete</span><strong>${freight ? formatBRL(freight.preco_centavos) : "—"}</strong></div>
       <div class="cart-total-line"><span>Total</span><strong>${freight ? formatBRL(total) : formatBRL(subtotal)}</strong></div>
     </div>
@@ -459,6 +480,25 @@ async function apiPost(path, payload){
   const data = await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(data.error || `Erro HTTP ${response.status}`);
   return data;
+}
+
+async function applyCoupon(event){
+  event.preventDefault();
+  const input=document.getElementById("couponCode"), button=document.getElementById("couponApplyButton");
+  COUPON_CODE=String(input?.value||"").trim().toUpperCase().replace(/\s+/g,"");
+  if(!COUPON_CODE){ const message=document.getElementById("couponMessage"); if(message){message.textContent="Digite um código de cupom.";message.className="coupon-message error";} return; }
+  if(button){button.disabled=true;button.textContent="Validando…";}
+  try{
+    COUPON_RESULT=await apiPost("/api/coupons/validate",{code:COUPON_CODE,items:cartPayload()});
+    COUPON_CODE=COUPON_RESULT.code;
+    renderCart();
+  }catch(error){
+    COUPON_RESULT=null;
+    const message=document.getElementById("couponMessage");
+    if(message){message.textContent=error.message;message.className="coupon-message error";}
+  }finally{
+    const current=document.getElementById("couponApplyButton"); if(current){current.disabled=false;current.textContent="Aplicar";}
+  }
 }
 
 async function calculateShipping(event){
@@ -547,11 +587,13 @@ async function createCheckout(){
         complement: fields.complement,
         city: fields.city,
         state: fields.state
-      }
+      },
+      couponCode: COUPON_RESULT?.code || undefined
     });
     sessionStorage.setItem("silly-cat-last-order", JSON.stringify({
       order_nsu:data.order_nsu,
       total_centavos:data.total_centavos,
+      desconto_centavos:data.desconto_centavos || 0,
       created_at:new Date().toISOString()
     }));
     window.location.href = data.url;
@@ -559,6 +601,28 @@ async function createCheckout(){
     showToast(error.message);
     if(button){ button.disabled = false; button.textContent = "Pagar com InfinitePay"; }
   }
+}
+
+function ensureReviewsUI(){
+  if(document.getElementById("reviewsDialog")) return;
+  const dialog=document.createElement("dialog"); dialog.id="reviewsDialog"; dialog.className="reviews-dialog";
+  dialog.innerHTML=`<div class="reviews-dialog-card"><button type="button" class="reviews-close" aria-label="Fechar">×</button><div id="reviewsDialogContent"></div></div>`;
+  document.body.appendChild(dialog);
+  dialog.querySelector(".reviews-close").addEventListener("click",()=>dialog.close());
+  dialog.addEventListener("click",event=>{if(event.target===dialog)dialog.close();});
+}
+
+async function openProductReviews(productId){
+  ensureReviewsUI();
+  const dialog=document.getElementById("reviewsDialog"), content=document.getElementById("reviewsDialogContent"), product=productById(productId);
+  content.innerHTML=`<p class="reviews-eyebrow">Avaliações</p><h2>${escapeHtml(product?.nome||"Produto")}</h2><p>Carregando comentários…</p>`;
+  dialog.showModal();
+  try{
+    const response=await fetch(apiUrl(`/api/products/${encodeURIComponent(productId)}/reviews`),{cache:"no-store"});
+    const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.error||"Não foi possível carregar as avaliações.");
+    const reviews=Array.isArray(data.reviews)?data.reviews:[];
+    content.innerHTML=`<p class="reviews-eyebrow">Melhores avaliações</p><h2>${escapeHtml(product?.nome||"Produto")}</h2>${reviews.length?`<div class="public-review-list">${reviews.map(review=>`<article class="public-review"><div class="public-review-stars" aria-label="${Number(review.rating)} de 5 estrelas">${"★".repeat(Number(review.rating))}${"☆".repeat(5-Number(review.rating))}</div><p>${escapeHtml(review.comment)}</p><footer>${review.reviewer_name?escapeHtml(review.reviewer_name):"Cliente Silly Cat"}${review.variant_name?` · ${escapeHtml(review.variant_name)}`:""} · ${new Date(review.created_at).toLocaleDateString("pt-BR")}</footer></article>`).join("")}</div>`:`<p>Ainda não há avaliações de 4 ou 5 estrelas publicadas para este produto.</p>`}`;
+  }catch(error){content.innerHTML=`<p class="reviews-eyebrow">Avaliações</p><h2>${escapeHtml(product?.nome||"Produto")}</h2><p>${escapeHtml(error.message)}</p>`;}
 }
 
 function initCartButtons(){

@@ -90,6 +90,53 @@
         <div id="productionEmpty" class="empty-state" hidden>Nenhuma encomenda aguardando produção.</div>
       </section>
 
+      <section class="admin-feature-section" aria-labelledby="couponsAdminTitle">
+        <div class="section-heading-row">
+          <div><p class="eyebrow">Descontos</p><h2 id="couponsAdminTitle">Cupons</h2></div>
+          <button class="primary-btn" type="button" id="newCouponButton">+ Novo cupom</button>
+        </div>
+        <div class="feature-toolbar">
+          <input id="couponSearch" type="search" placeholder="Buscar código…" autocomplete="off">
+          <select id="couponStatusFilter">
+            <option value="all">Todos</option><option value="active">Ativos</option><option value="inactive">Inativos</option><option value="archived">Arquivados</option>
+          </select>
+          <button class="ghost-btn" type="button" id="refreshCouponsButton">Atualizar</button>
+        </div>
+        <div id="couponList" class="coupon-admin-list"></div>
+        <div id="couponEmpty" class="empty-state" hidden>Nenhum cupom encontrado.</div>
+      </section>
+
+      <section class="admin-feature-section" aria-labelledby="reviewsAdminTitle">
+        <div class="section-heading-row">
+          <div><p class="eyebrow">Opiniões de compradores</p><h2 id="reviewsAdminTitle">Avaliações</h2></div>
+          <button class="ghost-btn" type="button" id="refreshReviewsButton">Atualizar avaliações</button>
+        </div>
+
+        <div class="external-review-box">
+          <div><h3>Gerar link para compra externa</h3><p>Use para compras feitas na loja física ou em outra plataforma. O link autoriza somente o produto e a variação selecionados.</p></div>
+          <form id="externalReviewForm" class="external-review-form">
+            <label>Produto<select id="externalReviewProduct" required></select></label>
+            <label>Variação<select id="externalReviewVariant"><option value="">Sem variação</option></select></label>
+            <label>Primeiro nome <small>(opcional)</small><input id="externalBuyerName" maxlength="60" placeholder="Ana"></label>
+            <button class="primary-btn" type="submit" id="generateReviewLinkButton">Gerar link seguro</button>
+          </form>
+          <div id="generatedReviewLink" class="generated-review-link" hidden>
+            <input id="generatedReviewUrl" readonly aria-label="Link gerado">
+            <button class="ghost-btn" type="button" id="copyReviewLinkButton">Copiar link</button>
+          </div>
+          <p class="form-message" id="externalReviewMessage" aria-live="polite"></p>
+          <details class="external-links-details"><summary>Links externos recentes</summary><div id="externalReviewLinks" class="external-review-links"></div></details>
+        </div>
+
+        <div class="feature-toolbar review-filters">
+          <select id="reviewProductFilter"><option value="">Todos os produtos</option></select>
+          <select id="reviewRatingFilter"><option value="">Todas as notas</option><option value="5">5 estrelas</option><option value="4">4 estrelas</option><option value="3">3 estrelas</option><option value="2">2 estrelas</option><option value="1">1 estrela</option></select>
+          <select id="reviewStatusFilter"><option value="">Publicadas e ocultas</option><option value="published">Publicadas</option><option value="hidden">Ocultas</option></select>
+        </div>
+        <div id="reviewAdminList" class="review-admin-list"></div>
+        <div id="reviewAdminEmpty" class="empty-state" hidden>Nenhuma avaliação corresponde aos filtros.</div>
+      </section>
+
       <section class="product-list" id="productList" aria-live="polite"></section>
       <div class="empty-state" id="emptyState" hidden>Nenhum produto corresponde ao filtro.</div>
     </section>
@@ -195,6 +242,28 @@
         </div>
       </div>
       <p class="form-message" id="productMessage" aria-live="polite"></p>
+    </form>
+  </dialog>
+
+  <dialog id="couponDialog" class="admin-dialog small-dialog">
+    <form method="dialog" class="dialog-card" id="couponForm">
+      <div class="dialog-head">
+        <div><p class="eyebrow">Desconto</p><h2 id="couponDialogTitle">Novo cupom</h2></div>
+        <button class="dialog-close" type="button" id="closeCouponDialog" aria-label="Fechar">×</button>
+      </div>
+      <div class="coupon-editor-grid">
+        <label>Código<input id="couponCodeAdmin" maxlength="40" pattern="[A-Za-z0-9_-]{3,40}" placeholder="BEMVINDO10" required></label>
+        <label>Tipo<select id="couponDiscountType"><option value="percent">Percentual (%)</option><option value="fixed">Valor fixo (R$)</option></select></label>
+        <label id="couponValueLabel">Valor<input id="couponDiscountValue" type="number" min="1" step="1" required></label>
+        <label>Quantidade máxima de usos<input id="couponMaxUses" type="number" min="1" max="1000000" step="1" required></label>
+        <label>Pedido mínimo (R$) <small>(opcional)</small><input id="couponMinOrder" type="number" min="0" step="0.01" value="0"></label>
+        <label>Início <small>(opcional)</small><input id="couponStartsAt" type="datetime-local"></label>
+        <label>Fim <small>(opcional)</small><input id="couponEndsAt" type="datetime-local"></label>
+        <label class="check-row"><input id="couponActive" type="checkbox" checked> Cupom ativo</label>
+      </div>
+      <p class="coupon-editor-note">Percentuais são inteiros de 1 a 100. O valor fixo nunca reduz os produtos abaixo de R$ 0,00 e não desconta o frete.</p>
+      <div class="dialog-actions"><div></div><div class="save-actions"><button class="ghost-btn" type="button" id="cancelCouponButton">Cancelar</button><button class="primary-btn" type="submit" id="saveCouponButton">Salvar cupom</button></div></div>
+      <p class="form-message" id="couponAdminMessage" aria-live="polite"></p>
     </form>
   </dialog>
 

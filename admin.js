@@ -5,7 +5,11 @@
   let PRODUCTS = [];
   let IMAGE_UPLOAD_ENABLED = false;
   let PRODUCTION_ORDERS = [];
+  let COUPONS = [];
+  let REVIEWS = [];
+  let EXTERNAL_REVIEW_LINKS = [];
   let editingId = null;
+  let editingCouponId = null;
 
   const $ = (id) => document.getElementById(id);
   const apiBaseUrl = () => String(window.SILLY_CAT_ECOMMERCE?.apiBaseUrl || "").replace(/\/$/, "");
@@ -70,7 +74,8 @@
     $("loginPanel").hidden = true;
     $("dashboard").hidden = false;
     try {
-      await Promise.all([loadProducts(), loadProductionOrders()]);
+      await loadProducts();
+      await Promise.all([loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]);
     } catch (error) {
       if (!token()) return;
       setStatus(error.message, true);
@@ -84,11 +89,183 @@
     IMAGE_UPLOAD_ENABLED = Boolean(data.image_upload_enabled);
     renderSummary(data.summary || {});
     renderProducts();
+    syncReviewProductOptions();
     $("imageNotice").hidden = IMAGE_UPLOAD_ENABLED;
     if (!IMAGE_UPLOAD_ENABLED) {
       $("imageNotice").textContent = "Upload direto de imagens ainda não está configurado. Você pode continuar usando caminhos img/... ou URLs HTTPS. Para upload pelo painel, configure o bucket R2 PRODUCT_IMAGES.";
     }
     setStatus(`Atualizado agora · ${PRODUCTS.length} produto(s) cadastrado(s)`);
+  }
+
+  function localDateTimeValue(value) {
+    if (!value) return "";
+    const date = new Date(value); if (Number.isNaN(date.getTime())) return "";
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  }
+
+  async function loadCoupons() {
+    const params = new URLSearchParams();
+    const query = $("couponSearch").value.trim();
+    const status = $("couponStatusFilter").value;
+    if (query) params.set("q", query); if (status && status !== "all") params.set("status", status);
+    const { data } = await api(`/api/admin/coupons?${params}`);
+    COUPONS = data.coupons || [];
+    renderCoupons();
+  }
+
+  function couponDiscountLabel(coupon) {
+    return coupon.discount_type === "percent" ? `${coupon.discount_value}%` : money(coupon.discount_value);
+  }
+
+  function couponValidity(coupon) {
+    const parts = [];
+    if (coupon.starts_at) parts.push(`desde ${new Date(coupon.starts_at).toLocaleString("pt-BR")}`);
+    if (coupon.ends_at) parts.push(`até ${new Date(coupon.ends_at).toLocaleString("pt-BR")}`);
+    return parts.join(" · ") || "sem período definido";
+  }
+
+  function renderCoupons() {
+    const list = $("couponList"), empty = $("couponEmpty");
+    empty.hidden = COUPONS.length > 0;
+    list.innerHTML = COUPONS.map((coupon) => {
+      const status = coupon.archived ? "ARQUIVADO" : coupon.active ? "ATIVO" : "INATIVO";
+      const statusClass = coupon.archived ? "archived" : coupon.active ? "available" : "provisional";
+      return `<article class="coupon-admin-card">
+        <div><div class="coupon-admin-head"><strong>${escapeHtml(coupon.code)}</strong><span class="badge ${statusClass}">${status}</span></div><p>${escapeHtml(couponDiscountLabel(coupon))} de desconto · mínimo ${money(coupon.min_order_cents)}</p><small>${escapeHtml(couponValidity(coupon))}</small></div>
+        <div class="coupon-usage"><strong>${coupon.used_count}</strong><span>utilizado(s)</span><small>${coupon.reserved_count} reservado(s) · ${coupon.remaining_count} restante(s)</small></div>
+        <div class="row-actions"><button class="mini-btn" type="button" data-edit-coupon="${coupon.id}">Editar</button>${coupon.archived ? `<button class="mini-btn" type="button" data-restore-coupon="${coupon.id}">Restaurar</button>` : `<button class="mini-btn danger-text" type="button" data-archive-coupon="${coupon.id}">Arquivar</button>`}</div>
+      </article>`;
+    }).join("");
+    list.querySelectorAll("[data-edit-coupon]").forEach((button) => button.addEventListener("click", () => openCouponEditor(Number(button.dataset.editCoupon))));
+    list.querySelectorAll("[data-archive-coupon]").forEach((button) => button.addEventListener("click", () => archiveCoupon(Number(button.dataset.archiveCoupon))));
+    list.querySelectorAll("[data-restore-coupon]").forEach((button) => button.addEventListener("click", () => restoreCoupon(Number(button.dataset.restoreCoupon))));
+  }
+
+  function openCouponEditor(id = null) {
+    editingCouponId = id;
+    const coupon = id ? COUPONS.find((item) => item.id === id) : null;
+    $("couponDialogTitle").textContent = coupon ? `Editar ${coupon.code}` : "Novo cupom";
+    $("couponCodeAdmin").value = coupon?.code || "";
+    $("couponDiscountType").value = coupon?.discount_type || "percent";
+    $("couponDiscountValue").value = coupon ? (coupon.discount_type === "fixed" ? (coupon.discount_value / 100).toFixed(2) : coupon.discount_value) : "";
+    $("couponMaxUses").value = coupon?.max_uses || 1;
+    $("couponMinOrder").value = coupon ? (coupon.min_order_cents / 100).toFixed(2) : "0.00";
+    $("couponStartsAt").value = localDateTimeValue(coupon?.starts_at);
+    $("couponEndsAt").value = localDateTimeValue(coupon?.ends_at);
+    $("couponActive").checked = coupon ? coupon.active : true;
+    setCouponMessage(""); syncCouponValueLabel(); $("couponDialog").showModal();
+  }
+
+  function syncCouponValueLabel() {
+    $("couponValueLabel").firstChild.textContent = $("couponDiscountType").value === "fixed" ? "Valor (R$)" : "Percentual (%)";
+    $("couponDiscountValue").max = $("couponDiscountType").value === "percent" ? "100" : "";
+    $("couponDiscountValue").step = $("couponDiscountType").value === "percent" ? "1" : "0.01";
+  }
+
+  function setCouponMessage(message, ok = false) { const el = $("couponAdminMessage"); el.textContent = message || ""; el.style.color = ok ? "#2d6a4f" : ""; }
+
+  async function saveCoupon(event) {
+    event.preventDefault(); const button = $("saveCouponButton"); button.disabled = true; setCouponMessage("Salvando…", true);
+    const type = $("couponDiscountType").value;
+    const rawValue = Number($("couponDiscountValue").value);
+    const payload = {
+      code: $("couponCodeAdmin").value.trim().toUpperCase(), discount_type: type,
+      discount_value: type === "fixed" ? Math.round(rawValue * 100) : Math.round(rawValue),
+      max_uses: Math.floor(Number($("couponMaxUses").value)), min_order_cents: Math.round(Number($("couponMinOrder").value || 0) * 100),
+      starts_at: $("couponStartsAt").value ? new Date($("couponStartsAt").value).toISOString() : null,
+      ends_at: $("couponEndsAt").value ? new Date($("couponEndsAt").value).toISOString() : null,
+      active: $("couponActive").checked,
+    };
+    try {
+      await api(editingCouponId ? `/api/admin/coupons/${editingCouponId}` : "/api/admin/coupons", { method: editingCouponId ? "PUT" : "POST", body: JSON.stringify(payload) });
+      $("couponDialog").close(); await loadCoupons(); setStatus(`Cupom ${payload.code} salvo.`);
+    } catch (error) { setCouponMessage(error.message); }
+    finally { button.disabled = false; }
+  }
+
+  async function archiveCoupon(id) {
+    const coupon = COUPONS.find((item) => item.id === id); if (!confirm(`Arquivar o cupom ${coupon?.code || id}?`)) return;
+    try { await api(`/api/admin/coupons/${id}`, { method: "DELETE" }); await loadCoupons(); setStatus("Cupom arquivado."); }
+    catch (error) { setStatus(error.message, true); }
+  }
+
+  async function restoreCoupon(id) {
+    try { await api(`/api/admin/coupons/${id}/restore`, { method: "POST" }); await loadCoupons(); setStatus("Cupom restaurado como inativo. Revise e ative quando quiser."); }
+    catch (error) { setStatus(error.message, true); }
+  }
+
+  function syncReviewProductOptions() {
+    const products = PRODUCTS.filter((product) => product.active);
+    const options = products.map((product) => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.nome)}</option>`).join("");
+    const external = $("externalReviewProduct"), filter = $("reviewProductFilter");
+    const previousExternal = external.value, previousFilter = filter.value;
+    external.innerHTML = `<option value="">Escolha um produto</option>${options}`;
+    filter.innerHTML = `<option value="">Todos os produtos</option>${options}`;
+    if (products.some((product) => product.id === previousExternal)) external.value = previousExternal;
+    if (products.some((product) => product.id === previousFilter)) filter.value = previousFilter;
+    syncExternalVariants();
+  }
+
+  function syncExternalVariants() {
+    const product = PRODUCTS.find((item) => item.id === $("externalReviewProduct").value);
+    const variants = product?.variacoes || [];
+    $("externalReviewVariant").innerHTML = variants.length
+      ? `<option value="">Escolha uma variação</option>${variants.map((variant) => `<option value="${escapeHtml(variant.id)}">${escapeHtml(variant.nome)}</option>`).join("")}`
+      : `<option value="">Sem variação</option>`;
+    $("externalReviewVariant").required = variants.length > 0;
+  }
+
+  async function generateExternalReviewLink(event) {
+    event.preventDefault(); const button = $("generateReviewLinkButton"); button.disabled = true; button.textContent = "Gerando…";
+    $("externalReviewMessage").textContent = ""; $("generatedReviewLink").hidden = true;
+    try {
+      const { data } = await api("/api/admin/review-links", { method: "POST", body: JSON.stringify({ product_id: $("externalReviewProduct").value, variant_id: $("externalReviewVariant").value || undefined, buyer_first_name: $("externalBuyerName").value.trim() || undefined }) });
+      $("generatedReviewUrl").value = data.url; $("generatedReviewLink").hidden = false;
+      $("externalReviewMessage").textContent = "Link criado. Ele funciona mesmo depois que o navegador for fechado e autoriza uma única avaliação para o item selecionado.";
+      await loadExternalReviewLinks();
+    } catch (error) { $("externalReviewMessage").textContent = error.message; }
+    finally { button.disabled = false; button.textContent = "Gerar link seguro"; }
+  }
+
+  async function copyGeneratedReviewLink() {
+    const value = $("generatedReviewUrl").value; if (!value) return;
+    try { await navigator.clipboard.writeText(value); $("externalReviewMessage").textContent = "Link copiado."; }
+    catch { $("generatedReviewUrl").select(); document.execCommand("copy"); $("externalReviewMessage").textContent = "Link copiado."; }
+  }
+
+  async function loadExternalReviewLinks() {
+    const { data } = await api("/api/admin/review-links"); EXTERNAL_REVIEW_LINKS = data.links || []; renderExternalReviewLinks();
+  }
+
+  function renderExternalReviewLinks() {
+    $("externalReviewLinks").innerHTML = EXTERNAL_REVIEW_LINKS.length ? EXTERNAL_REVIEW_LINKS.map((link) => `<div class="external-link-row"><span><b>${escapeHtml(link.product_name)}</b>${link.variant_name ? ` · ${escapeHtml(link.variant_name)}` : ""}<small>${link.buyer_first_name ? `${escapeHtml(link.buyer_first_name)} · ` : ""}${new Date(link.created_at).toLocaleString("pt-BR")}</small></span><span class="badge ${link.used ? "available" : link.active ? "provisional" : "archived"}">${link.used ? "USADO" : link.active ? "ABERTO" : "REVOGADO"}</span>${link.active && !link.used ? `<button class="mini-btn" type="button" data-revoke-review-link="${link.id}">Revogar</button>` : ""}</div>`).join("") : `<p>Nenhum link externo gerado.</p>`;
+    $("externalReviewLinks").querySelectorAll("[data-revoke-review-link]").forEach((button) => button.addEventListener("click", () => revokeExternalReviewLink(Number(button.dataset.revokeReviewLink))));
+  }
+
+  async function revokeExternalReviewLink(id) {
+    if (!confirm("Revogar este link? Ele deixará de aceitar uma avaliação.")) return;
+    try { await api(`/api/admin/review-links/${id}`, { method: "DELETE" }); await loadExternalReviewLinks(); }
+    catch (error) { setStatus(error.message, true); }
+  }
+
+  async function loadReviews() {
+    const params = new URLSearchParams();
+    if ($("reviewProductFilter").value) params.set("product_id", $("reviewProductFilter").value);
+    if ($("reviewRatingFilter").value) params.set("rating", $("reviewRatingFilter").value);
+    if ($("reviewStatusFilter").value) params.set("status", $("reviewStatusFilter").value);
+    const { data } = await api(`/api/admin/reviews?${params}`); REVIEWS = data.reviews || []; renderAdminReviews();
+  }
+
+  function renderAdminReviews() {
+    const list = $("reviewAdminList"), empty = $("reviewAdminEmpty"); empty.hidden = REVIEWS.length > 0;
+    list.innerHTML = REVIEWS.map((review) => `<article class="review-admin-card ${review.status === "hidden" ? "hidden-review" : ""}"><div class="review-admin-head"><div><strong>${escapeHtml(review.product_name)}</strong>${review.variant_name ? `<small> · ${escapeHtml(review.variant_name)}</small>` : ""}</div><span class="review-admin-stars">${"★".repeat(review.rating)}${"☆".repeat(5-review.rating)}</span></div><p>${escapeHtml(review.comment)}</p><footer>${review.reviewer_name ? escapeHtml(review.reviewer_name) : "Nome não exibido"} · ${review.source === "external" ? "compra externa" : "pedido online"} · ${new Date(review.created_at).toLocaleString("pt-BR")}</footer><button class="mini-btn" type="button" data-moderate-review="${review.id}" data-status="${review.status === "published" ? "hidden" : "published"}">${review.status === "published" ? "Ocultar" : "Publicar"}</button></article>`).join("");
+    list.querySelectorAll("[data-moderate-review]").forEach((button) => button.addEventListener("click", () => moderateReview(Number(button.dataset.moderateReview), button.dataset.status)));
+  }
+
+  async function moderateReview(id, status) {
+    try { await api(`/api/admin/reviews/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }); await loadReviews(); }
+    catch (error) { setStatus(error.message, true); }
   }
 
   function renderSummary(summary) {
@@ -343,7 +520,7 @@
         const delta = Number(item.delta || 0);
         const sign = delta > 0 ? "+" : "";
         const klass = delta > 0 ? "positive" : delta < 0 ? "negative" : "";
-        const detail = item.kind === "sale" ? `Pedido ${escapeHtml(item.ref)}` : escapeHtml(item.reason || "Ajuste manual");
+        const detail = item.kind === "sale" ? `Pedido ${escapeHtml(item.ref)}${String(item.reason || "").includes("Variação") ? ` · ${escapeHtml(String(item.reason).split("·").pop().trim())}` : ""}` : escapeHtml(item.reason || "Ajuste manual");
         return `<div class="history-item"><time>${new Date(item.created_at).toLocaleString("pt-BR")}</time><span>${detail}</span><strong class="${klass}">${sign}${delta}</strong></div>`;
       }).join("") : "<p>Nenhuma movimentação registrada.</p>";
     } catch (error) { $("historyList").innerHTML = `<p>${escapeHtml(error.message)}</p>`; }
@@ -365,7 +542,7 @@
   $("loginForm").addEventListener("submit", (event) => { event.preventDefault(); login($("adminKey").value); });
   $("togglePassword").addEventListener("click", () => { $("adminKey").type = $("adminKey").type === "password" ? "text" : "password"; });
   $("logoutButton").addEventListener("click", () => logout(true));
-  $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadProductionOrders()]).catch((e) => setStatus(e.message, true)));
+  $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]).catch((e) => setStatus(e.message, true)));
   $("refreshProductionButton").addEventListener("click", () => loadProductionOrders().catch((e) => setStatus(e.message, true)));
   $("exportButton").addEventListener("click", exportCatalog);
   $("newProductButton").addEventListener("click", () => openEditor());
@@ -378,6 +555,21 @@
   $("historyButton").addEventListener("click", showHistory);
   $("closeHistoryDialog").addEventListener("click", () => $("historyDialog").close());
   $("addVariantButton").addEventListener("click", () => addVariantRow());
+  $("newCouponButton").addEventListener("click", () => openCouponEditor());
+  $("refreshCouponsButton").addEventListener("click", () => loadCoupons().catch((e) => setStatus(e.message, true)));
+  $("couponSearch").addEventListener("input", () => loadCoupons().catch((e) => setStatus(e.message, true)));
+  $("couponStatusFilter").addEventListener("change", () => loadCoupons().catch((e) => setStatus(e.message, true)));
+  $("couponForm").addEventListener("submit", saveCoupon);
+  $("closeCouponDialog").addEventListener("click", () => $("couponDialog").close());
+  $("cancelCouponButton").addEventListener("click", () => $("couponDialog").close());
+  $("couponDiscountType").addEventListener("change", syncCouponValueLabel);
+  $("refreshReviewsButton").addEventListener("click", () => Promise.all([loadReviews(), loadExternalReviewLinks()]).catch((e) => setStatus(e.message, true)));
+  $("reviewProductFilter").addEventListener("change", () => loadReviews().catch((e) => setStatus(e.message, true)));
+  $("reviewRatingFilter").addEventListener("change", () => loadReviews().catch((e) => setStatus(e.message, true)));
+  $("reviewStatusFilter").addEventListener("change", () => loadReviews().catch((e) => setStatus(e.message, true)));
+  $("externalReviewProduct").addEventListener("change", syncExternalVariants);
+  $("externalReviewForm").addEventListener("submit", generateExternalReviewLink);
+  $("copyReviewLinkButton").addEventListener("click", copyGeneratedReviewLink);
   $("productImageRefs").addEventListener("input", () => updateImagePreview(currentImageRefs().filter(ref => !ref.startsWith("r2:"))));
   $("productImageFile").addEventListener("change", () => {
     const files = [...($("productImageFile").files || [])];
