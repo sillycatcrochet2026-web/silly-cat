@@ -4,7 +4,8 @@
   const TOKEN_KEY = "sillycat_admin_session";
   let PRODUCTS = [];
   let IMAGE_UPLOAD_ENABLED = false;
-  let PRODUCTION_ORDERS = [];
+  let FULFILLMENT_ORDERS = [];
+  let FULFILLMENT_SUMMARY = {};
   let COUPONS = [];
   let REVIEWS = [];
   let EXTERNAL_REVIEW_LINKS = [];
@@ -86,6 +87,21 @@
       if (!token()) return;
       setStatus(error.message, true);
     }
+  }
+
+  function activateAdminTab(name, { scroll = false } = {}) {
+    const selected = document.querySelector(`[data-admin-tab="${name}"]`) ? name : "products";
+    document.querySelectorAll("[data-admin-tab]").forEach((button) => {
+      const active = button.dataset.adminTab === selected;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
+      const active = panel.dataset.adminPanel === "products" || panel.dataset.adminPanel === selected;
+      panel.hidden = !active;
+      panel.classList.toggle("active", active);
+    });
+    if (scroll) document.querySelector(`[data-admin-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function loadProducts() {
@@ -390,53 +406,179 @@
   }
 
   async function loadProductionOrders() {
-    const { data } = await api("/api/admin/orders/production-pending");
-    PRODUCTION_ORDERS = Array.isArray(data.orders) ? data.orders : [];
-    $("metricProduction").textContent = PRODUCTION_ORDERS.length;
+    const { data } = await api("/api/admin/orders/fulfillment");
+    FULFILLMENT_ORDERS = Array.isArray(data.orders) ? data.orders : [];
+    FULFILLMENT_SUMMARY = data.summary || {};
+    const productionCount = Number(FULFILLMENT_SUMMARY.production_pending || 0);
+    const openCount = Number(FULFILLMENT_SUMMARY.open || 0);
+    $("metricProduction").textContent = productionCount;
+    $("ordersTabBadge").textContent = openCount;
+    $("ordersTabBadge").hidden = openCount < 1;
+    $("productionPriority").hidden = productionCount < 1;
+    $("productionPriorityTitle").textContent = productionCount === 1
+      ? "1 encomenda aguarda produção"
+      : `${productionCount} encomendas aguardam produção`;
+    $("productionPriorityText").textContent = "Abra a fila para ver os itens, concluir a produção e avisar o comprador.";
     renderProductionOrders();
+  }
+
+  function filteredFulfillmentOrders() {
+    const stage = $("orderStageFilter")?.value || "open";
+    if (stage === "all") return FULFILLMENT_ORDERS;
+    if (stage === "open") return FULFILLMENT_ORDERS.filter((order) => order.stage !== "shipped");
+    return FULFILLMENT_ORDERS.filter((order) => order.stage === stage);
+  }
+
+  function orderStageMeta(stage) {
+    return ({
+      production_pending: { label: "Aguardando produção", tone: "production" },
+      label_pending: { label: "Etiqueta pendente", tone: "label" },
+      ready_to_ship: { label: "Pronto para envio", tone: "ready" },
+      shipped: { label: "Enviado", tone: "shipped" },
+    })[stage] || { label: "Em andamento", tone: "label" };
+  }
+
+  function orderTimelineItem(label, state, detail = "") {
+    return `<li class="order-timeline-item ${escapeHtml(state)}"><span aria-hidden="true">${state === "done" ? "✓" : state === "current" ? "●" : "○"}</span><div><b>${escapeHtml(label)}</b>${detail ? `<small>${escapeHtml(detail)}</small>` : ""}</div></li>`;
+  }
+
+  function stageEmailMessage(order, stage) {
+    const sentAt = order[`${stage}_email_sent_at`];
+    const error = order[`${stage}_email_error`];
+    if (sentAt) return `<p class="order-email-ok">✓ E-mail ao comprador enviado em ${escapeHtml(new Date(sentAt).toLocaleString("pt-BR"))}</p>`;
+    if (error) return `<p class="order-email-error">⚠ E-mail não enviado: ${escapeHtml(error)}</p>`;
+    return "";
   }
 
   function renderProductionOrders() {
     const list = $("productionOrders");
     const empty = $("productionEmpty");
     if (!list || !empty) return;
-    empty.hidden = PRODUCTION_ORDERS.length > 0;
-    list.innerHTML = PRODUCTION_ORDERS.map((order) => {
+    const orders = filteredFulfillmentOrders();
+    empty.hidden = orders.length > 0;
+    list.innerHTML = orders.map((order) => {
       const items = (order.items || []).map((item) => {
         const needed = Number(item.production_quantity || 0);
         return `<li>${escapeHtml(item.quantity)}x ${escapeHtml(item.product_name)}${item.variant_name ? ` · <em>${escapeHtml(item.variant_name)}</em>` : ""}${needed > 0 ? ` · <b>produzir ${needed}</b>` : ""}</li>`;
       }).join("");
       const paidAt = order.paid_at ? new Date(order.paid_at).toLocaleString("pt-BR") : "—";
-      const productionReady = order.production_status === "ready";
-      return `<article class="production-order-card">
-        <div class="production-order-main">
-          <div class="production-order-head"><strong>${escapeHtml(order.order_nsu)}</strong><span>${escapeHtml(paidAt)}</span></div>
+      const shippedAt = order.shipped_at ? new Date(order.shipped_at).toLocaleString("pt-BR") : "";
+      const requiresProduction = Boolean(order.requires_production);
+      const productionReady = !requiresProduction || order.production_status === "ready";
+      const labelReady = order.label_status === "ready";
+      const shipped = order.stage === "shipped";
+      const stage = orderStageMeta(order.stage);
+      const productionDetail = requiresProduction
+        ? (productionReady ? "concluída" : `${Number(order.production_units || 0)} unidade(s)`) : "não necessária";
+      const labelDetail = labelReady ? "pronta para imprimir" : (order.label_error ? "falha; tente novamente" : "aguardando geração");
+      const timeline = [
+        orderTimelineItem("Pagamento", "done", paidAt),
+        orderTimelineItem("Produção", productionReady ? "done" : "current", productionDetail),
+        orderTimelineItem("Etiqueta", labelReady ? "done" : (productionReady ? "current" : "waiting"), labelDetail),
+        orderTimelineItem("Envio", shipped ? "done" : (labelReady ? "current" : "waiting"), shipped ? shippedAt : "aguardando confirmação"),
+      ].join("");
+      const labelLinks = (order.label_print_urls || []).map((url, index) => `<a class="ghost-btn order-label-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">Imprimir etiqueta${order.label_print_urls.length > 1 ? ` ${index + 1}` : ""} ↗</a>`).join("");
+      let action = "";
+      if (order.stage === "production_pending") {
+        action = `<button class="primary-btn" type="button" data-confirm-production="${escapeHtml(order.order_nsu)}">Confirmar produção concluída</button>`;
+      } else if (order.stage === "label_pending") {
+        action = requiresProduction && !order.production_email_sent_at
+          ? `<button class="primary-btn" type="button" data-confirm-production="${escapeHtml(order.order_nsu)}">Avisar produção + gerar etiqueta</button>`
+          : `<button class="primary-btn" type="button" data-generate-label="${escapeHtml(order.order_nsu)}">Gerar etiqueta</button>`;
+      } else if (order.stage === "ready_to_ship") {
+        action = `<label class="tracking-field">Rastreio <small>(opcional)</small><input data-tracking-code="${escapeHtml(order.order_nsu)}" maxlength="120" value="${escapeHtml(order.tracking_code || "")}" placeholder="Código de rastreio"></label><button class="primary-btn" type="button" data-confirm-shipping="${escapeHtml(order.order_nsu)}">Confirmar envio</button>`;
+      } else if (shipped && !order.shipping_email_sent_at) {
+        action = `<button class="primary-btn" type="button" data-confirm-shipping="${escapeHtml(order.order_nsu)}">Reenviar aviso de envio</button>`;
+      }
+      return `<article class="order-workflow-card stage-${escapeHtml(stage.tone)}">
+        <header class="production-order-head"><div><strong>${escapeHtml(order.order_nsu)}</strong><span>Pago em ${escapeHtml(paidAt)}</span></div><span class="order-stage-badge ${escapeHtml(stage.tone)}">${escapeHtml(stage.label)}</span></header>
+        <div class="order-workflow-body">
+          <div class="production-order-main">
           <p><b>${escapeHtml(order.customer_name || "Cliente")}</b> · ${money(order.total_cents)}</p>
           <ul>${items}</ul>
           <p class="production-order-shipping">${escapeHtml(order.shipping_company || "")} · ${escapeHtml(order.shipping_service_name || "")} · prazo de envio ${escapeHtml(order.shipping_deadline_days || "-")} dia(s)</p>
-          ${productionReady ? `<p class="production-order-ready">✓ Produção concluída; etiqueta ainda pendente.</p>` : ""}
+          ${order.label_error && !labelReady ? `<p class="order-label-error">Falha na etiqueta: ${escapeHtml(order.label_error)}</p>` : ""}
+          ${requiresProduction ? stageEmailMessage(order, "production") : ""}
+          ${stageEmailMessage(order, "shipping")}
+          </div>
+          <ol class="order-timeline" aria-label="Etapas do pedido">${timeline}</ol>
         </div>
-        <button class="primary-btn production-ready-btn" type="button" data-production-ready="${escapeHtml(order.order_nsu)}">${productionReady ? "Tentar gerar etiqueta" : "Produção concluída + gerar etiqueta"}</button>
+        <footer class="order-card-actions">${labelLinks}${action}</footer>
       </article>`;
     }).join("");
 
-    list.querySelectorAll("[data-production-ready]").forEach((button) => {
-      button.addEventListener("click", () => finishProduction(button.dataset.productionReady, button));
+    list.querySelectorAll("[data-confirm-production]").forEach((button) => {
+      button.addEventListener("click", () => confirmProduction(button.dataset.confirmProduction, button));
+    });
+    list.querySelectorAll("[data-generate-label]").forEach((button) => {
+      button.addEventListener("click", () => generateOrderLabel(button.dataset.generateLabel, button));
+    });
+    list.querySelectorAll("[data-confirm-shipping]").forEach((button) => {
+      button.addEventListener("click", () => confirmOrderShipment(button.dataset.confirmShipping, button));
     });
   }
 
-  async function finishProduction(orderNsu, button) {
-    if (!confirm(`Confirmar que toda a produção do pedido ${orderNsu} foi concluída? A etiqueta do Melhor Envio será gerada agora e poderá consumir saldo.`)) return;
+  async function confirmProduction(orderNsu, button) {
+    if (!confirm(`Confirmar que toda a produção do pedido ${orderNsu} foi concluída? O comprador será avisado por e-mail e a etiqueta será gerada agora.`)) return;
     const original = button.textContent;
     button.disabled = true;
-    button.textContent = "Gerando etiqueta…";
+    button.textContent = "Confirmando…";
     try {
       const { data } = await api(`/api/admin/orders/${encodeURIComponent(orderNsu)}/production-ready`, { method: "POST" });
       const urls = data?.label?.print_urls || [];
-      setStatus(urls.length ? `Produção concluída. Etiqueta pronta: ${urls[0]}` : "Produção concluída. Etiqueta processada pelo Melhor Envio.");
+      const emailNote = data?.email?.sent ? " O comprador recebeu o e-mail." : data?.email?.error ? " A produção foi salva, mas o e-mail falhou e poderá ser reenviado." : "";
+      setStatus(data?.label_error
+        ? `Produção concluída.${emailNote} A etiqueta ficou pendente: ${data.label_error}`
+        : `${urls.length ? "Produção concluída e etiqueta pronta." : "Produção concluída e etiqueta processada."}${emailNote}`,
+        Boolean(data?.label_error));
       await loadProductionOrders();
     } catch (error) {
-      setStatus(`Produção marcada como concluída, mas a etiqueta não pôde ser finalizada: ${error.message}`, true);
+      setStatus(error.message, true);
+      await loadProductionOrders().catch(() => {});
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
+  async function generateOrderLabel(orderNsu, button) {
+    if (!confirm(`Gerar agora a etiqueta do pedido ${orderNsu}? Esta ação pode consumir saldo no Melhor Envio.`)) return;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = "Gerando…";
+    try {
+      await api(`/api/admin/orders/${encodeURIComponent(orderNsu)}/label`, { method: "POST" });
+      setStatus(`Etiqueta do pedido ${orderNsu} processada.`);
+      await loadProductionOrders();
+    } catch (error) {
+      setStatus(`Não foi possível gerar a etiqueta: ${error.message}`, true);
+      await loadProductionOrders().catch(() => {});
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
+  async function confirmOrderShipment(orderNsu, button) {
+    if (!confirm(`Confirmar que o pedido ${orderNsu} foi enviado? O comprador receberá um e-mail agora.`)) return;
+    const trackingInput = button.closest(".order-workflow-card")?.querySelector("[data-tracking-code]");
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = "Confirmando…";
+    try {
+      const { data } = await api(`/api/admin/orders/${encodeURIComponent(orderNsu)}/shipped`, {
+        method: "POST",
+        body: JSON.stringify({ tracking_code: trackingInput?.value.trim() || "" }),
+      });
+      setStatus(data?.email?.sent
+        ? `Envio do pedido ${orderNsu} confirmado e comprador avisado.`
+        : data?.email?.error
+          ? `Envio confirmado, mas o e-mail falhou: ${data.email.error}`
+          : `Envio do pedido ${orderNsu} já estava confirmado; nenhum e-mail duplicado foi enviado.`,
+        Boolean(data?.email?.error));
+      await loadProductionOrders();
+    } catch (error) {
+      setStatus(error.message, true);
       await loadProductionOrders().catch(() => {});
     } finally {
       button.disabled = false;
@@ -792,8 +934,18 @@
   $("loginForm").addEventListener("submit", (event) => { event.preventDefault(); login($("adminKey").value); });
   $("togglePassword").addEventListener("click", () => { $("adminKey").type = $("adminKey").type === "password" ? "text" : "password"; });
   $("logoutButton").addEventListener("click", () => logout(true));
+  document.querySelectorAll("[data-admin-tab]").forEach((button) => {
+    button.addEventListener("click", () => activateAdminTab(button.dataset.adminTab, { scroll: true }));
+  });
+  $("openOrdersMetric").addEventListener("click", () => activateAdminTab("orders", { scroll: true }));
+  $("productionPriority").addEventListener("click", () => {
+    $("orderStageFilter").value = "production_pending";
+    renderProductionOrders();
+    activateAdminTab("orders", { scroll: true });
+  });
   $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadCategories(), loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]).catch((e) => setStatus(e.message, true)));
   $("refreshProductionButton").addEventListener("click", () => loadProductionOrders().catch((e) => setStatus(e.message, true)));
+  $("orderStageFilter").addEventListener("change", renderProductionOrders);
   $("exportButton").addEventListener("click", exportCatalog);
   $("newProductButton").addEventListener("click", () => openEditor());
   $("searchInput").addEventListener("input", renderProducts);

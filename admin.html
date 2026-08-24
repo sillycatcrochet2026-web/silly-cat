@@ -44,118 +44,153 @@
         </div>
       </header>
 
+      <nav class="admin-tabs" aria-label="Seções do painel">
+        <button class="admin-tab active" type="button" data-admin-tab="products" aria-selected="true">Produtos</button>
+        <button class="admin-tab" type="button" data-admin-tab="orders" aria-selected="false">Encomendas <span class="tab-badge" id="ordersTabBadge" hidden>0</span></button>
+        <button class="admin-tab" type="button" data-admin-tab="categories" aria-selected="false">Categorias</button>
+        <button class="admin-tab" type="button" data-admin-tab="coupons" aria-selected="false">Cupons</button>
+        <button class="admin-tab" type="button" data-admin-tab="reviews" aria-selected="false">Avaliações</button>
+      </nav>
+
       <section class="metrics" aria-label="Resumo do inventário">
         <article class="metric"><span>Produtos ativos</span><strong id="metricActive">—</strong></article>
         <article class="metric"><span>Unidades disponíveis</span><strong id="metricUnits">—</strong></article>
         <article class="metric"><span>Esgotados</span><strong id="metricSoldOut">—</strong></article>
         <article class="metric"><span>Arquivados</span><strong id="metricArchived">—</strong></article>
-        <article class="metric"><span>Encomendas em produção</span><strong id="metricProduction">—</strong></article>
+        <button class="metric metric-action" type="button" id="openOrdersMetric"><span>Aguardando produção</span><strong id="metricProduction">—</strong><small>Abrir encomendas →</small></button>
       </section>
 
-      <section class="toolbar" aria-label="Ferramentas do catálogo">
-        <div class="search-wrap">
-          <label for="searchInput">Buscar produto</label>
-          <input id="searchInput" type="search" placeholder="Nome ou ID…" autocomplete="off">
-        </div>
-        <div class="filter-wrap">
-          <label for="statusFilter">Exibir</label>
-          <select id="statusFilter">
-            <option value="active">Ativos</option>
-            <option value="available">Disponíveis</option>
-            <option value="soldout">Esgotados</option>
-            <option value="archived">Arquivados</option>
-            <option value="all">Todos</option>
-          </select>
-        </div>
-        <div class="toolbar-actions">
-          <button class="ghost-btn" type="button" id="refreshButton">Atualizar</button>
-          <button class="ghost-btn" type="button" id="exportButton">Exportar JSON</button>
-          <button class="primary-btn" type="button" id="newProductButton">+ Novo produto</button>
-        </div>
-      </section>
+      <button class="production-priority" type="button" id="productionPriority" hidden>
+        <span class="priority-icon" aria-hidden="true">🧶</span>
+        <span class="priority-copy"><small>Ação prioritária</small><strong id="productionPriorityTitle">Há encomendas aguardando produção</strong><span id="productionPriorityText">Abra a fila para acompanhar os itens e concluir cada etapa.</span></span>
+        <b>Abrir encomendas →</b>
+      </button>
 
-      <div class="notice" id="imageNotice" hidden></div>
       <div class="status-line" id="statusLine" aria-live="polite"></div>
 
-      <section class="admin-feature-section" aria-labelledby="categoriesAdminTitle">
-        <div class="section-heading-row">
-          <div><p class="eyebrow">Organização da loja</p><h2 id="categoriesAdminTitle">Categorias</h2></div>
-          <button class="primary-btn" type="button" id="newCategoryButton">+ Nova categoria</button>
-        </div>
-        <p class="category-admin-help">Crie categorias para usar nos produtos e nos filtros da loja. Uma categoria em uso não pode ser desativada ou arquivada.</p>
-        <div class="feature-toolbar category-toolbar">
-          <input id="categorySearch" type="search" placeholder="Buscar categoria…" autocomplete="off">
-          <select id="categoryStatusFilter">
-            <option value="all">Todas</option><option value="active">Ativas</option><option value="inactive">Inativas</option><option value="archived">Arquivadas</option>
-          </select>
-          <button class="ghost-btn" type="button" id="refreshCategoriesButton">Atualizar</button>
-        </div>
-        <div id="categoryList" class="category-admin-list"></div>
-        <div id="categoryEmpty" class="empty-state" hidden>Nenhuma categoria encontrada.</div>
-      </section>
-
-      <section class="production-admin-section" aria-labelledby="productionAdminTitle">
-        <div class="section-heading-row">
-          <div>
-            <p class="eyebrow">Pedidos pagos</p>
-            <h2 id="productionAdminTitle">Encomendas aguardando produção</h2>
+      <section class="admin-panel" data-admin-panel="orders" aria-labelledby="productionAdminTitle" hidden>
+        <section class="production-admin-section">
+          <div class="section-heading-row">
+            <div>
+              <p class="eyebrow">Pedidos pagos</p>
+              <h2 id="productionAdminTitle">Produção, etiquetas e envios</h2>
+            </div>
+            <button class="ghost-btn" type="button" id="refreshProductionButton">Atualizar encomendas</button>
           </div>
-          <button class="ghost-btn" type="button" id="refreshProductionButton">Atualizar encomendas</button>
-        </div>
-        <p class="production-admin-help">Quando terminar de produzir todos os itens de um pedido, use o botão abaixo. Só então a etiqueta do Melhor Envio será comprada e gerada.</p>
-        <div id="productionOrders" class="production-order-list"></div>
-        <div id="productionEmpty" class="empty-state" hidden>Nenhuma encomenda aguardando produção.</div>
-      </section>
-
-      <section class="admin-feature-section" aria-labelledby="couponsAdminTitle">
-        <div class="section-heading-row">
-          <div><p class="eyebrow">Descontos</p><h2 id="couponsAdminTitle">Cupons</h2></div>
-          <button class="primary-btn" type="button" id="newCouponButton">+ Novo cupom</button>
-        </div>
-        <div class="feature-toolbar">
-          <input id="couponSearch" type="search" placeholder="Buscar código…" autocomplete="off">
-          <select id="couponStatusFilter">
-            <option value="all">Todos</option><option value="active">Ativos</option><option value="inactive">Inativos</option><option value="archived">Arquivados</option>
-          </select>
-          <button class="ghost-btn" type="button" id="refreshCouponsButton">Atualizar</button>
-        </div>
-        <div id="couponList" class="coupon-admin-list"></div>
-        <div id="couponEmpty" class="empty-state" hidden>Nenhum cupom encontrado.</div>
-      </section>
-
-      <section class="admin-feature-section" aria-labelledby="reviewsAdminTitle">
-        <div class="section-heading-row">
-          <div><p class="eyebrow">Opiniões de compradores</p><h2 id="reviewsAdminTitle">Avaliações</h2></div>
-          <button class="ghost-btn" type="button" id="refreshReviewsButton">Atualizar avaliações</button>
-        </div>
-
-        <div class="external-review-box">
-          <div><h3>Gerar link para compra externa</h3><p>Use para compras feitas na loja física ou em outra plataforma. O link autoriza somente o produto e a variação selecionados.</p></div>
-          <form id="externalReviewForm" class="external-review-form">
-            <label>Produto<select id="externalReviewProduct" required></select></label>
-            <label>Variação<select id="externalReviewVariant"><option value="">Sem variação</option></select></label>
-            <label>Primeiro nome <small>(opcional)</small><input id="externalBuyerName" maxlength="60" placeholder="Ana"></label>
-            <button class="primary-btn" type="submit" id="generateReviewLinkButton">Gerar link seguro</button>
-          </form>
-          <div id="generatedReviewLink" class="generated-review-link" hidden>
-            <input id="generatedReviewUrl" readonly aria-label="Link gerado">
-            <button class="ghost-btn" type="button" id="copyReviewLinkButton">Copiar link</button>
+          <p class="production-admin-help">Acompanhe cada pedido até o envio. Ao confirmar a produção e o envio, o comprador recebe um e-mail automático; repetir uma confirmação não envia e-mail duplicado.</p>
+          <div class="order-filter-row">
+            <label for="orderStageFilter">Mostrar etapa</label>
+            <select id="orderStageFilter">
+              <option value="open">Pendências abertas</option>
+              <option value="production_pending">Aguardando produção</option>
+              <option value="label_pending">Etiqueta pendente</option>
+              <option value="ready_to_ship">Prontos para envio</option>
+              <option value="shipped">Enviados recentemente</option>
+              <option value="all">Todos desta lista</option>
+            </select>
           </div>
-          <p class="form-message" id="externalReviewMessage" aria-live="polite"></p>
-          <details class="external-links-details"><summary>Links externos recentes</summary><div id="externalReviewLinks" class="external-review-links"></div></details>
-        </div>
-
-        <div class="feature-toolbar review-filters">
-          <select id="reviewProductFilter"><option value="">Todos os produtos</option></select>
-          <select id="reviewRatingFilter"><option value="">Todas as notas</option><option value="5">5 estrelas</option><option value="4">4 estrelas</option><option value="3">3 estrelas</option><option value="2">2 estrelas</option><option value="1">1 estrela</option></select>
-          <select id="reviewStatusFilter"><option value="">Publicadas e ocultas</option><option value="published">Publicadas</option><option value="hidden">Ocultas</option></select>
-        </div>
-        <div id="reviewAdminList" class="review-admin-list"></div>
-        <div id="reviewAdminEmpty" class="empty-state" hidden>Nenhuma avaliação corresponde aos filtros.</div>
+          <div id="productionOrders" class="production-order-list"></div>
+          <div id="productionEmpty" class="empty-state" hidden>Nenhum pedido corresponde a esta etapa.</div>
+        </section>
       </section>
 
-      <section class="product-list" id="productList" aria-live="polite"></section>
-      <div class="empty-state" id="emptyState" hidden>Nenhum produto corresponde ao filtro.</div>
+      <section class="admin-panel" data-admin-panel="categories" aria-labelledby="categoriesAdminTitle" hidden>
+        <section class="admin-feature-section">
+          <div class="section-heading-row">
+            <div><p class="eyebrow">Organização da loja</p><h2 id="categoriesAdminTitle">Categorias</h2></div>
+            <button class="primary-btn" type="button" id="newCategoryButton">+ Nova categoria</button>
+          </div>
+          <p class="category-admin-help">Crie categorias para usar nos produtos e nos filtros da loja. Uma categoria em uso não pode ser desativada ou arquivada.</p>
+          <div class="feature-toolbar category-toolbar">
+            <input id="categorySearch" type="search" placeholder="Buscar categoria…" autocomplete="off">
+            <select id="categoryStatusFilter">
+              <option value="all">Todas</option><option value="active">Ativas</option><option value="inactive">Inativas</option><option value="archived">Arquivadas</option>
+            </select>
+            <button class="ghost-btn" type="button" id="refreshCategoriesButton">Atualizar</button>
+          </div>
+          <div id="categoryList" class="category-admin-list"></div>
+          <div id="categoryEmpty" class="empty-state" hidden>Nenhuma categoria encontrada.</div>
+        </section>
+      </section>
+
+      <section class="admin-panel" data-admin-panel="coupons" aria-labelledby="couponsAdminTitle" hidden>
+        <section class="admin-feature-section">
+          <div class="section-heading-row">
+            <div><p class="eyebrow">Descontos</p><h2 id="couponsAdminTitle">Cupons</h2></div>
+            <button class="primary-btn" type="button" id="newCouponButton">+ Novo cupom</button>
+          </div>
+          <div class="feature-toolbar">
+            <input id="couponSearch" type="search" placeholder="Buscar código…" autocomplete="off">
+            <select id="couponStatusFilter">
+              <option value="all">Todos</option><option value="active">Ativos</option><option value="inactive">Inativos</option><option value="archived">Arquivados</option>
+            </select>
+            <button class="ghost-btn" type="button" id="refreshCouponsButton">Atualizar</button>
+          </div>
+          <div id="couponList" class="coupon-admin-list"></div>
+          <div id="couponEmpty" class="empty-state" hidden>Nenhum cupom encontrado.</div>
+        </section>
+      </section>
+
+      <section class="admin-panel" data-admin-panel="reviews" aria-labelledby="reviewsAdminTitle" hidden>
+        <section class="admin-feature-section">
+          <div class="section-heading-row">
+            <div><p class="eyebrow">Opiniões de compradores</p><h2 id="reviewsAdminTitle">Avaliações</h2></div>
+            <button class="ghost-btn" type="button" id="refreshReviewsButton">Atualizar avaliações</button>
+          </div>
+
+          <div class="external-review-box">
+            <div><h3>Gerar link para compra externa</h3><p>Use para compras feitas na loja física ou em outra plataforma. O link autoriza somente o produto e a variação selecionados.</p></div>
+            <form id="externalReviewForm" class="external-review-form">
+              <label>Produto<select id="externalReviewProduct" required></select></label>
+              <label>Variação<select id="externalReviewVariant"><option value="">Sem variação</option></select></label>
+              <label>Primeiro nome <small>(opcional)</small><input id="externalBuyerName" maxlength="60" placeholder="Ana"></label>
+              <button class="primary-btn" type="submit" id="generateReviewLinkButton">Gerar link seguro</button>
+            </form>
+            <div id="generatedReviewLink" class="generated-review-link" hidden>
+              <input id="generatedReviewUrl" readonly aria-label="Link gerado">
+              <button class="ghost-btn" type="button" id="copyReviewLinkButton">Copiar link</button>
+            </div>
+            <p class="form-message" id="externalReviewMessage" aria-live="polite"></p>
+            <details class="external-links-details"><summary>Links externos recentes</summary><div id="externalReviewLinks" class="external-review-links"></div></details>
+          </div>
+
+          <div class="feature-toolbar review-filters">
+            <select id="reviewProductFilter"><option value="">Todos os produtos</option></select>
+            <select id="reviewRatingFilter"><option value="">Todas as notas</option><option value="5">5 estrelas</option><option value="4">4 estrelas</option><option value="3">3 estrelas</option><option value="2">2 estrelas</option><option value="1">1 estrela</option></select>
+            <select id="reviewStatusFilter"><option value="">Publicadas e ocultas</option><option value="published">Publicadas</option><option value="hidden">Ocultas</option></select>
+          </div>
+          <div id="reviewAdminList" class="review-admin-list"></div>
+          <div id="reviewAdminEmpty" class="empty-state" hidden>Nenhuma avaliação corresponde aos filtros.</div>
+        </section>
+      </section>
+
+      <section class="admin-panel active" data-admin-panel="products" aria-labelledby="productsAdminTitle">
+        <div class="panel-intro"><div><p class="eyebrow">Catálogo e estoque</p><h2 id="productsAdminTitle">Produtos</h2></div></div>
+        <section class="toolbar" aria-label="Ferramentas do catálogo">
+          <div class="search-wrap">
+            <label for="searchInput">Buscar produto</label>
+            <input id="searchInput" type="search" placeholder="Nome ou ID…" autocomplete="off">
+          </div>
+          <div class="filter-wrap">
+            <label for="statusFilter">Exibir</label>
+            <select id="statusFilter">
+              <option value="active">Ativos</option>
+              <option value="available">Disponíveis</option>
+              <option value="soldout">Esgotados</option>
+              <option value="archived">Arquivados</option>
+              <option value="all">Todos</option>
+            </select>
+          </div>
+          <div class="toolbar-actions">
+            <button class="ghost-btn" type="button" id="refreshButton">Atualizar tudo</button>
+            <button class="ghost-btn" type="button" id="exportButton">Exportar JSON</button>
+            <button class="primary-btn" type="button" id="newProductButton">+ Novo produto</button>
+          </div>
+        </section>
+        <div class="notice" id="imageNotice" hidden></div>
+        <section class="product-list" id="productList" aria-live="polite"></section>
+        <div class="empty-state" id="emptyState" hidden>Nenhum produto corresponde ao filtro.</div>
+      </section>
     </section>
   </main>
 
