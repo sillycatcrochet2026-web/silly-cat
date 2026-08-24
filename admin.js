@@ -10,6 +10,8 @@
   let EXTERNAL_REVIEW_LINKS = [];
   let editingId = null;
   let editingCouponId = null;
+  let IMAGE_ITEMS = [];
+  let draggingImageKey = null;
 
   const $ = (id) => document.getElementById(id);
   const apiBaseUrl = () => String(window.SILLY_CAT_ECOMMERCE?.apiBaseUrl || "").replace(/\/$/, "");
@@ -422,14 +424,132 @@
     });
   }
 
-  function currentImageRefs() {
-    return $("productImageRefs").value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean);
+  function imageItemKey() {
+    return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
-  function updateImagePreview(sources = []) {
-    const preview = $("imagePreview"); const list = Array.isArray(sources) ? sources.filter(Boolean) : (sources ? [sources] : []);
-    if (!list.length) { preview.innerHTML = "<span>Sem imagem</span>"; return; }
-    preview.innerHTML = list.map((src,index)=>`<div class="admin-image-tile"><img src="${escapeHtml(src)}" alt="Prévia ${index+1}"><span>${index===0?"CAPA":index+1}</span></div>`).join("");
+  function releasePendingImageUrls() {
+    IMAGE_ITEMS.filter((item) => item.kind === "file" && item.previewUrl?.startsWith("blob:"))
+      .forEach((item) => URL.revokeObjectURL(item.previewUrl));
+  }
+
+  function existingImageRefs() {
+    return IMAGE_ITEMS.filter((item) => item.kind === "existing").map((item) => item.ref);
+  }
+
+  function moveImageItem(key, direction) {
+    const index = IMAGE_ITEMS.findIndex((item) => item.key === key);
+    const destination = index + direction;
+    if (index < 0 || destination < 0 || destination >= IMAGE_ITEMS.length) return;
+    [IMAGE_ITEMS[index], IMAGE_ITEMS[destination]] = [IMAGE_ITEMS[destination], IMAGE_ITEMS[index]];
+    renderImageManager();
+  }
+
+  function removeImageItem(key) {
+    const index = IMAGE_ITEMS.findIndex((item) => item.key === key);
+    if (index < 0) return;
+    const [removed] = IMAGE_ITEMS.splice(index, 1);
+    if (removed.kind === "file" && removed.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(removed.previewUrl);
+    renderImageManager();
+  }
+
+  function reorderImageItem(sourceKey, targetKey, insertAfter) {
+    const sourceIndex = IMAGE_ITEMS.findIndex((item) => item.key === sourceKey);
+    const targetIndex = IMAGE_ITEMS.findIndex((item) => item.key === targetKey);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+    const [moved] = IMAGE_ITEMS.splice(sourceIndex, 1);
+    const updatedTargetIndex = IMAGE_ITEMS.findIndex((item) => item.key === targetKey);
+    IMAGE_ITEMS.splice(updatedTargetIndex + (insertAfter ? 1 : 0), 0, moved);
+    renderImageManager();
+  }
+
+  function renderImageManager() {
+    const preview = $("imagePreview");
+    if (!IMAGE_ITEMS.length) {
+      preview.innerHTML = '<div class="image-gallery-empty"><strong>Sem imagem</strong><small>Adicione arquivos ou caminhos ao lado.</small></div>';
+      return;
+    }
+    preview.innerHTML = IMAGE_ITEMS.map((item, index) => `
+      <article class="admin-image-tile" draggable="true" data-image-key="${escapeHtml(item.key)}">
+        <div class="admin-image-frame">
+          <img src="${escapeHtml(item.previewUrl || item.ref)}" alt="Imagem ${index + 1} do produto">
+          <span class="image-position-badge">${index === 0 ? "CAPA" : index + 1}</span>
+          ${item.kind === "file" ? '<span class="image-pending-badge">NOVA</span>' : ""}
+          <span class="image-drag-handle" aria-hidden="true">⠿</span>
+        </div>
+        <div class="image-tile-actions">
+          <button type="button" class="image-tile-button" data-image-move="-1" aria-label="Mover imagem para a esquerda" title="Mover para a esquerda" ${index === 0 ? "disabled" : ""}>←</button>
+          <button type="button" class="image-tile-button" data-image-move="1" aria-label="Mover imagem para a direita" title="Mover para a direita" ${index === IMAGE_ITEMS.length - 1 ? "disabled" : ""}>→</button>
+          <button type="button" class="image-tile-button remove" data-image-remove aria-label="Remover imagem" title="Remover imagem">✕</button>
+        </div>
+      </article>`).join("");
+
+    preview.querySelectorAll(".admin-image-tile").forEach((tile) => {
+      const key = tile.dataset.imageKey;
+      tile.querySelectorAll("[data-image-move]").forEach((button) => button.addEventListener("click", () => moveImageItem(key, Number(button.dataset.imageMove))));
+      tile.querySelector("[data-image-remove]").addEventListener("click", () => removeImageItem(key));
+      tile.addEventListener("dragstart", (event) => {
+        draggingImageKey = key;
+        tile.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", key);
+      });
+      tile.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        if (!draggingImageKey || draggingImageKey === key) return;
+        const rect = tile.getBoundingClientRect();
+        const after = event.clientX > rect.left + rect.width / 2;
+        tile.classList.toggle("drop-after", after);
+        tile.classList.toggle("drop-before", !after);
+      });
+      tile.addEventListener("dragleave", () => tile.classList.remove("drop-before", "drop-after"));
+      tile.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const rect = tile.getBoundingClientRect();
+        reorderImageItem(draggingImageKey || event.dataTransfer.getData("text/plain"), key, event.clientX > rect.left + rect.width / 2);
+      });
+      tile.addEventListener("dragend", () => {
+        draggingImageKey = null;
+        preview.querySelectorAll(".admin-image-tile").forEach((item) => item.classList.remove("dragging", "drop-before", "drop-after"));
+      });
+    });
+  }
+
+  function addManualImageRefs() {
+    const input = $("productImageRefs");
+    const refs = input.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (!refs.length) return;
+    const known = new Set(IMAGE_ITEMS.filter((item) => item.kind === "existing").map((item) => item.ref));
+    const additions = [...new Set(refs)].filter((ref) => !known.has(ref));
+    if (IMAGE_ITEMS.length + additions.length > 20) {
+      setProductMessage("Cada produto pode ter no máximo 20 imagens.");
+      return;
+    }
+    additions.forEach((ref) => IMAGE_ITEMS.push({ key: imageItemKey(), kind: "existing", ref, previewUrl: ref }));
+    input.value = "";
+    setProductMessage(additions.length ? "Imagem adicionada à galeria. Salve o produto para aplicar." : "Essas imagens já estão na galeria.", true);
+    renderImageManager();
+  }
+
+  function addPendingImageFiles(files) {
+    if (!files.length) return;
+    if (!IMAGE_UPLOAD_ENABLED) {
+      setProductMessage("Configure o R2 para enviar arquivos diretamente pelo painel.");
+      return;
+    }
+    if (IMAGE_ITEMS.length + files.length > 20) {
+      setProductMessage("Cada produto pode ter no máximo 20 imagens.");
+      return;
+    }
+    for (const file of files) {
+      if (file.size > 6 * 1024 * 1024) {
+        setProductMessage(`A imagem “${file.name}” ultrapassa 6 MB.`);
+        continue;
+      }
+      IMAGE_ITEMS.push({ key: imageItemKey(), kind: "file", file, previewUrl: URL.createObjectURL(file) });
+    }
+    $("productImageFile").value = "";
+    renderImageManager();
   }
 
   function openEditor(id = null) {
@@ -446,12 +566,15 @@
     $("productActive").checked = product ? Boolean(product.active) : true;
     $("productWidth").value = product?.frete?.largura ?? ""; $("productHeight").value = product?.frete?.altura ?? ""; $("productLength").value = product?.frete?.comprimento ?? ""; $("productWeight").value = product?.frete?.peso ?? "";
     $("productProvisional").checked = Boolean(product?.frete?.provisorio);
+    releasePendingImageUrls();
     const refs = Array.isArray(product?.image_refs) ? product.image_refs : (product?.image_ref ? [product.image_ref] : []);
-    $("productImageRefs").value = refs.join("\n"); $("productImageFile").value = ""; $("productImageFile").disabled = !IMAGE_UPLOAD_ENABLED;
-    $("imageUploadHelp").textContent = IMAGE_UPLOAD_ENABLED ? "JPG, PNG, WebP ou GIF, até 6 MB por imagem." : "Configure o R2 para enviar arquivos diretamente pelo painel.";
+    const resolvedImages = Array.isArray(product?.images) ? product.images : (product?.img ? [product.img] : []);
+    IMAGE_ITEMS = refs.map((ref, index) => ({ key: imageItemKey(), kind: "existing", ref, previewUrl: resolvedImages[index] || ref }));
+    $("productImageRefs").value = ""; $("productImageFile").value = ""; $("productImageFile").disabled = !IMAGE_UPLOAD_ENABLED;
+    $("imageUploadHelp").textContent = IMAGE_UPLOAD_ENABLED ? "JPG, PNG, WebP ou GIF, até 6 MB por imagem. Máximo de 20 imagens no total." : "Configure o R2 para enviar arquivos diretamente pelo painel.";
     $("variantRows").innerHTML = ""; (product?.variacoes || []).forEach(addVariantRow); syncVariantStockMode();
     $("dangerZone").style.visibility = product ? "visible" : "hidden"; $("archiveProductButton").textContent = product?.active === false ? "Produto arquivado" : "Arquivar produto"; $("archiveProductButton").disabled = product?.active === false; $("historyButton").disabled = !product;
-    setProductMessage(""); updateImagePreview(product?.images || (product?.img ? [product.img] : [])); $("productDialog").showModal();
+    setProductMessage(""); renderImageManager(); $("productDialog").showModal();
   }
 
   function setProductMessage(message, ok = false) { const el = $("productMessage"); el.textContent = message || ""; el.style.color = ok ? "#2d6a4f" : ""; }
@@ -462,7 +585,7 @@
       id: $("productId").value.trim(), name: $("productName").value.trim(), description: $("productDescription").value.trim(), price_cents: Math.round(Number($("productPrice").value || 0) * 100),
       tag: $("productTag").value, category: $("productCategory").value, sort_order: Math.trunc(Number($("productSortOrder").value || 0)), active: $("productActive").checked,
       width_cm: Number($("productWidth").value), height_cm: Number($("productHeight").value), length_cm: Number($("productLength").value), weight_kg: Number($("productWeight").value), shipping_provisional: $("productProvisional").checked,
-      image_refs: currentImageRefs(), variants, stock_reason: editingId ? "Edição do produto pelo painel" : "Cadastro inicial",
+      image_refs: existingImageRefs(), variants, stock_reason: editingId ? "Edição do produto pelo painel" : "Cadastro inicial",
     };
     if(!variants.length) payload.stock=Math.max(0,Math.floor(Number($("productStock").value||0)));
     return payload;
@@ -471,15 +594,30 @@
   async function saveProduct(event) {
     event.preventDefault(); const button=$("saveProductButton"); button.disabled=true; setProductMessage("Salvando…",true);
     try {
+      const desiredItems=[...IMAGE_ITEMS];
       const payload=productPayload(); const path=editingId?`/api/admin/products/${encodeURIComponent(editingId)}`:"/api/admin/products"; const method=editingId?"PUT":"POST";
-      const {data}=await api(path,{method,body:JSON.stringify(payload)}); const id=data.id;
-      const files=[...($("productImageFile").files||[])];
-      if(files.length){
-        if(!IMAGE_UPLOAD_ENABLED) throw new Error("O R2 ainda não está configurado para upload de imagens.");
-        for(let i=0;i<files.length;i++){
-          const file=files[i]; setProductMessage(`Produto salvo. Enviando imagem ${i+1}/${files.length}…`,true);
-          await api(`/api/admin/products/${encodeURIComponent(id)}/images`,{method:"POST",headers:{"Content-Type":file.type},body:await file.arrayBuffer()});
-        }
+      let {data}=await api(path,{method,body:JSON.stringify(payload)}); const id=data.id;
+      editingId=id; $("productId").readOnly=true;
+      const pendingItems=desiredItems.filter((item)=>item.kind==="file");
+      const knownRefs=new Set(existingImageRefs());
+      if(pendingItems.length && !IMAGE_UPLOAD_ENABLED) throw new Error("O R2 ainda não está configurado para upload de imagens.");
+      for(let i=0;i<pendingItems.length;i++){
+        const item=pendingItems[i]; setProductMessage(`Produto salvo. Enviando imagem ${i+1}/${pendingItems.length}…`,true);
+        const result=await api(`/api/admin/products/${encodeURIComponent(id)}/images`,{method:"POST",headers:{"Content-Type":item.file.type},body:await item.file.arrayBuffer()});
+        data=result.data;
+        const returnedRefs=Array.isArray(data.image_refs)?data.image_refs:[];
+        const newRef=returnedRefs.find((ref)=>!knownRefs.has(ref)) || returnedRefs.at(-1);
+        if(!newRef) throw new Error("A imagem foi enviada, mas o backend não devolveu sua referência.");
+        const resolvedIndex=returnedRefs.indexOf(newRef);
+        if(item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl);
+        item.kind="existing"; item.ref=newRef; item.previewUrl=(Array.isArray(data.images)?data.images[resolvedIndex]:"") || newRef; delete item.file;
+        knownRefs.add(newRef);
+      }
+      IMAGE_ITEMS=desiredItems;
+      if(pendingItems.length){
+        const finalRefs=desiredItems.map((item)=>item.ref).filter(Boolean);
+        const finalResult=await api(`/api/admin/products/${encodeURIComponent(id)}`,{method:"PUT",body:JSON.stringify({image_refs:finalRefs})});
+        data=finalResult.data;
       }
       $("productDialog").close(); await loadProducts(); setStatus(`${data.nome || payload.name} salvo com sucesso.`);
     } catch(error){ setProductMessage(error.message || "Não foi possível salvar."); }
@@ -570,11 +708,12 @@
   $("externalReviewProduct").addEventListener("change", syncExternalVariants);
   $("externalReviewForm").addEventListener("submit", generateExternalReviewLink);
   $("copyReviewLinkButton").addEventListener("click", copyGeneratedReviewLink);
-  $("productImageRefs").addEventListener("input", () => updateImagePreview(currentImageRefs().filter(ref => !ref.startsWith("r2:"))));
+  $("addImageRefsButton").addEventListener("click", addManualImageRefs);
   $("productImageFile").addEventListener("change", () => {
     const files = [...($("productImageFile").files || [])];
-    if (files.length) updateImagePreview(files.map(file => URL.createObjectURL(file)));
+    addPendingImageFiles(files);
   });
+  $("productDialog").addEventListener("close", releasePendingImageUrls);
   $("productName").addEventListener("input", () => {
     if (editingId || $("productId").value.trim()) return;
     const slug = $("productName").value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100);

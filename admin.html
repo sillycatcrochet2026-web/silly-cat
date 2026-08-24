@@ -215,16 +215,17 @@
           <label class="check-row"><input id="productProvisional" type="checkbox"> Medidas provisórias</label>
 
           <h3 class="image-heading">Imagens</h3>
-          <p class="field-help">A primeira imagem será a capa. Na loja, duas ou mais imagens aparecem em carrossel.</p>
+          <p class="field-help">Arraste as imagens ou use as setas para mudar a ordem. A primeira será a capa; remova com a lixeira. As alterações são aplicadas ao salvar o produto.</p>
           <div class="image-editor multi-image-editor">
-            <div class="image-preview image-gallery-preview" id="imagePreview"><span>Sem imagem</span></div>
+            <div class="image-preview image-gallery-preview" id="imagePreview" aria-live="polite"><span>Sem imagem</span></div>
             <div class="image-controls">
-              <label>Caminhos/URLs das imagens <small>(uma por linha)</small>
+              <label>Adicionar caminhos/URLs <small>(uma por linha)</small>
                 <textarea id="productImageRefs" rows="4" placeholder="img/produto-frente.jpeg&#10;img/produto-lado.jpeg&#10;https://…"></textarea>
               </label>
+              <button class="ghost-btn image-add-button" type="button" id="addImageRefsButton">Adicionar à galeria</button>
               <label>Enviar novas imagens
                 <input id="productImageFile" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif">
-                <small id="imageUploadHelp">JPG, PNG, WebP ou GIF, até 6 MB por imagem.</small>
+                <small id="imageUploadHelp">JPG, PNG, WebP ou GIF, até 6 MB por imagem. Máximo de 20 imagens no total.</small>
               </label>
             </div>
           </div>
