@@ -8,8 +8,11 @@
   let COUPONS = [];
   let REVIEWS = [];
   let EXTERNAL_REVIEW_LINKS = [];
+  let CATEGORIES = [];
   let editingId = null;
   let editingCouponId = null;
+  let editingCategoryId = null;
+  let selectCategoryAfterSave = false;
   let IMAGE_ITEMS = [];
   let draggingImageKey = null;
 
@@ -76,6 +79,7 @@
     $("loginPanel").hidden = true;
     $("dashboard").hidden = false;
     try {
+      await loadCategories();
       await loadProducts();
       await Promise.all([loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]);
     } catch (error) {
@@ -97,6 +101,114 @@
       $("imageNotice").textContent = "Upload direto de imagens ainda não está configurado. Você pode continuar usando caminhos img/... ou URLs HTTPS. Para upload pelo painel, configure o bucket R2 PRODUCT_IMAGES.";
     }
     setStatus(`Atualizado agora · ${PRODUCTS.length} produto(s) cadastrado(s)`);
+  }
+
+  function syncProductCategoryOptions(selected = "") {
+    const select = $("productCategory");
+    if (!select) return;
+    const current = selected || select.value;
+    const available = CATEGORIES.filter((category) => category.active && !category.archived);
+    const currentCategory = CATEGORIES.find((category) => category.slug === current);
+    const options = currentCategory && !available.some((category) => category.slug === current)
+      ? [currentCategory, ...available]
+      : available;
+    select.innerHTML = options.map((category) => `<option value="${escapeHtml(category.slug)}">${escapeHtml(category.name)}${category.active && !category.archived ? "" : " · indisponível"}</option>`).join("");
+    const fallback = options.find((category) => category.slug === "outros") || options[0];
+    select.value = options.some((category) => category.slug === current) ? current : (fallback?.slug || "");
+  }
+
+  async function loadCategories() {
+    const { data } = await api("/api/admin/categories");
+    CATEGORIES = data.categories || [];
+    renderCategories();
+    syncProductCategoryOptions();
+  }
+
+  function filteredCategories() {
+    const query = $("categorySearch").value.trim().toLowerCase();
+    const status = $("categoryStatusFilter").value;
+    return CATEGORIES.filter((category) => {
+      if (query && !`${category.name} ${category.slug}`.toLowerCase().includes(query)) return false;
+      if (status === "active") return category.active && !category.archived;
+      if (status === "inactive") return !category.active && !category.archived;
+      if (status === "archived") return category.archived;
+      return true;
+    });
+  }
+
+  function renderCategories() {
+    const list = $("categoryList"), items = filteredCategories();
+    $("categoryEmpty").hidden = items.length > 0;
+    list.innerHTML = items.map((category) => {
+      const status = category.archived ? "ARQUIVADA" : category.active ? "ATIVA" : "INATIVA";
+      const statusClass = category.archived ? "archived" : category.active ? "available" : "provisional";
+      const locked = Number(category.product_count || 0) > 0 || category.slug === "outros";
+      const archiveTitle = category.slug === "outros" ? "A categoria Outros é protegida." : locked ? "Mova os produtos para outra categoria antes de arquivar." : "Arquivar categoria";
+      return `<article class="category-admin-card">
+        <div><div class="category-admin-head"><strong>${escapeHtml(category.name)}</strong><span class="badge ${statusClass}">${status}</span></div><code>${escapeHtml(category.slug)}</code><small>Ordem ${category.sort_order}</small></div>
+        <div class="category-product-count"><strong>${Number(category.product_count || 0)}</strong><span>produto(s)</span></div>
+        <div class="row-actions">${category.archived ? `<button class="mini-btn" type="button" data-restore-category="${category.id}">Restaurar</button>` : `<button class="mini-btn" type="button" data-edit-category="${category.id}">Editar</button><button class="mini-btn danger-text" type="button" data-archive-category="${category.id}" title="${escapeHtml(archiveTitle)}" ${locked ? "disabled" : ""}>Arquivar</button>`}</div>
+      </article>`;
+    }).join("");
+    list.querySelectorAll("[data-edit-category]").forEach((button) => button.addEventListener("click", () => openCategoryEditor(Number(button.dataset.editCategory))));
+    list.querySelectorAll("[data-archive-category]").forEach((button) => button.addEventListener("click", () => archiveCategory(Number(button.dataset.archiveCategory))));
+    list.querySelectorAll("[data-restore-category]").forEach((button) => button.addEventListener("click", () => restoreCategory(Number(button.dataset.restoreCategory))));
+  }
+
+  function categorySlug(value) {
+    return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+  }
+
+  function openCategoryEditor(id = null, { selectAfterSave = false } = {}) {
+    editingCategoryId = id;
+    selectCategoryAfterSave = selectAfterSave;
+    const category = id ? CATEGORIES.find((item) => item.id === id) : null;
+    $("categoryDialogTitle").textContent = category ? `Editar ${category.name}` : "Nova categoria";
+    $("categoryName").value = category?.name || "";
+    $("categorySlug").value = category?.slug || "";
+    $("categorySlug").readOnly = Boolean(category);
+    delete $("categorySlug").dataset.touched;
+    const orderedCategories = CATEGORIES.filter((item) => !item.archived && item.slug !== "outros");
+    $("categorySortOrder").value = category?.sort_order ?? (orderedCategories.length ? Math.max(...orderedCategories.map((item) => Number(item.sort_order || 0))) + 10 : 10);
+    $("categoryActive").checked = category ? category.active : true;
+    setCategoryMessage("");
+    $("categoryDialog").showModal();
+  }
+
+  function setCategoryMessage(message, ok = false) {
+    const element = $("categoryAdminMessage");
+    element.textContent = message || "";
+    element.style.color = ok ? "#2d6a4f" : "";
+  }
+
+  async function saveCategory(event) {
+    event.preventDefault();
+    const button = $("saveCategoryButton"); button.disabled = true; setCategoryMessage("Salvando…", true);
+    const payload = { name: $("categoryName").value.trim(), slug: $("categorySlug").value.trim(), sort_order: Math.trunc(Number($("categorySortOrder").value || 0)), active: $("categoryActive").checked };
+    try {
+      const { data } = await api(editingCategoryId ? `/api/admin/categories/${editingCategoryId}` : "/api/admin/categories", { method: editingCategoryId ? "PUT" : "POST", body: JSON.stringify(payload) });
+      const shouldSelect = selectCategoryAfterSave && data.active && !data.archived;
+      $("categoryDialog").close();
+      await loadCategories();
+      if (shouldSelect) {
+        syncProductCategoryOptions(data.slug);
+        $("productCategory").value = data.slug;
+      }
+      setStatus(`Categoria ${data.name} salva.`);
+    } catch (error) { setCategoryMessage(error.message); }
+    finally { button.disabled = false; }
+  }
+
+  async function archiveCategory(id) {
+    const category = CATEGORIES.find((item) => item.id === id);
+    if (!category || !confirm(`Arquivar a categoria “${category.name}”?`)) return;
+    try { await api(`/api/admin/categories/${id}`, { method: "DELETE" }); await loadCategories(); setStatus("Categoria arquivada."); }
+    catch (error) { setStatus(error.message, true); }
+  }
+
+  async function restoreCategory(id) {
+    try { await api(`/api/admin/categories/${id}/restore`, { method: "POST" }); await loadCategories(); setStatus("Categoria restaurada como inativa. Edite-a para ativar."); }
+    catch (error) { setStatus(error.message, true); }
   }
 
   function localDateTimeValue(value) {
@@ -560,7 +672,7 @@
     $("productId").value = product?.id || ""; $("productId").readOnly = Boolean(product);
     $("productName").value = product?.nome || ""; $("productDescription").value = product?.desc || "";
     $("productPrice").value = product ? (Number(product.preco_centavos) / 100).toFixed(2) : "";
-    $("productStock").value = product?.estoque ?? 1; $("productCategory").value = product?.categoria || "outros";
+    $("productStock").value = product?.estoque ?? 1; syncProductCategoryOptions(product?.categoria || "outros");
     $("productTag").value = String(product?.tag || "").toLowerCase() === "novo" ? "Novo" : "";
     $("productSortOrder").value = product?.sort_order ?? (PRODUCTS.length ? Math.max(...PRODUCTS.map((p) => Number(p.sort_order || 0))) + 1 : 0);
     $("productActive").checked = product ? Boolean(product.active) : true;
@@ -619,7 +731,7 @@
         const finalResult=await api(`/api/admin/products/${encodeURIComponent(id)}`,{method:"PUT",body:JSON.stringify({image_refs:finalRefs})});
         data=finalResult.data;
       }
-      $("productDialog").close(); await loadProducts(); setStatus(`${data.nome || payload.name} salvo com sucesso.`);
+      $("productDialog").close(); await Promise.all([loadProducts(), loadCategories()]); setStatus(`${data.nome || payload.name} salvo com sucesso.`);
     } catch(error){ setProductMessage(error.message || "Não foi possível salvar."); }
     finally { button.disabled=false; }
   }
@@ -680,7 +792,7 @@
   $("loginForm").addEventListener("submit", (event) => { event.preventDefault(); login($("adminKey").value); });
   $("togglePassword").addEventListener("click", () => { $("adminKey").type = $("adminKey").type === "password" ? "text" : "password"; });
   $("logoutButton").addEventListener("click", () => logout(true));
-  $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]).catch((e) => setStatus(e.message, true)));
+  $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadCategories(), loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]).catch((e) => setStatus(e.message, true)));
   $("refreshProductionButton").addEventListener("click", () => loadProductionOrders().catch((e) => setStatus(e.message, true)));
   $("exportButton").addEventListener("click", exportCatalog);
   $("newProductButton").addEventListener("click", () => openEditor());
@@ -693,6 +805,16 @@
   $("historyButton").addEventListener("click", showHistory);
   $("closeHistoryDialog").addEventListener("click", () => $("historyDialog").close());
   $("addVariantButton").addEventListener("click", () => addVariantRow());
+  $("newCategoryButton").addEventListener("click", () => openCategoryEditor());
+  $("quickNewCategoryButton").addEventListener("click", () => openCategoryEditor(null, { selectAfterSave: true }));
+  $("refreshCategoriesButton").addEventListener("click", () => loadCategories().catch((e) => setStatus(e.message, true)));
+  $("categorySearch").addEventListener("input", renderCategories);
+  $("categoryStatusFilter").addEventListener("change", renderCategories);
+  $("categoryForm").addEventListener("submit", saveCategory);
+  $("closeCategoryDialog").addEventListener("click", () => $("categoryDialog").close());
+  $("cancelCategoryButton").addEventListener("click", () => $("categoryDialog").close());
+  $("categoryName").addEventListener("input", () => { if (!editingCategoryId && !$("categorySlug").dataset.touched) $("categorySlug").value = categorySlug($("categoryName").value); });
+  $("categorySlug").addEventListener("input", () => { $("categorySlug").dataset.touched = "1"; $("categorySlug").value = categorySlug($("categorySlug").value); });
   $("newCouponButton").addEventListener("click", () => openCouponEditor());
   $("refreshCouponsButton").addEventListener("click", () => loadCoupons().catch((e) => setStatus(e.message, true)));
   $("couponSearch").addEventListener("input", () => loadCoupons().catch((e) => setStatus(e.message, true)));

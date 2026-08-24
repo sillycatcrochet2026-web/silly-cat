@@ -2,11 +2,12 @@ const PLACEHOLDER = /COLE_AQUI/;
 const CART_STORAGE_KEY = "silly-cat-cart-v2";
 const LEGACY_CART_STORAGE_KEY = "silly-cat-cart-v1";
 const MAX_CART_QUANTITY = 20;
-const CATEGORY_LABELS = {
-  todos:"Todos", gatos:"Gatos", snoopy:"Snoopy", galinhas:"Galinhas",
-  flamulas:"Flâmulas", coelhos:"Coelhos", pokemons:"Pokémons", outros:"Outros"
-};
+const FALLBACK_CATEGORIES = [
+  {slug:"gatos",name:"Gatos"},{slug:"snoopy",name:"Snoopy"},{slug:"galinhas",name:"Galinhas"},
+  {slug:"flamulas",name:"Flâmulas"},{slug:"coelhos",name:"Coelhos"},{slug:"pokemons",name:"Pokémons"},{slug:"outros",name:"Outros"}
+];
 let PRODUTOS = [];
+let CATALOG_CATEGORIES = [...FALLBACK_CATEGORIES];
 let CART = loadCart();
 let SHIPPING_QUOTES = [];
 let SELECTED_SHIPPING_ID = null;
@@ -65,6 +66,22 @@ async function loadCatalog(){
   }catch(error){
     console.error("Não foi possível carregar o catálogo", error); PRODUTOS = [];
     document.querySelectorAll("[data-products]").forEach(grid => { grid.innerHTML = `<div class="catalog-error">Não conseguimos carregar o catálogo agora. Tente atualizar a página.</div>`; });
+    return;
+  }
+  try{
+    const response = await fetch(apiUrl("/api/categories"), {cache:"no-store"});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if(!Array.isArray(data?.categories)) throw new Error("Categorias inválidas");
+    CATALOG_CATEGORIES = data.categories.map(category=>({slug:String(category.slug||""),name:String(category.name||"")})).filter(category=>category.slug&&category.name);
+  }catch(error){
+    console.warn("Não foi possível carregar a lista de categorias; usando as categorias dos produtos.", error);
+    const derived = new Map();
+    PRODUTOS.forEach(product=>{
+      const slug=String(product.categoria||"outros").toLowerCase();
+      if(!derived.has(slug)) derived.set(slug,String(product.categoria_label||slug));
+    });
+    CATALOG_CATEGORIES = derived.size ? [...derived].map(([slug,name])=>({slug,name})) : [...FALLBACK_CATEGORIES];
   }
 }
 function productById(id){ return PRODUTOS.find(product => product.id === id); }
@@ -117,7 +134,8 @@ function ensureCatalogControls(){
   document.querySelectorAll('[data-products="all"]').forEach(grid=>{
     if(grid.previousElementSibling?.classList?.contains("catalog-browser")) return;
     const wrapper = document.createElement("section"); wrapper.className = "catalog-browser";
-    wrapper.innerHTML = `<div class="catalog-search"><span aria-hidden="true">⌕</span><input type="search" data-catalog-search placeholder="Buscar por nome…" autocomplete="off"></div><div class="catalog-filters" role="group" aria-label="Filtrar produtos">${Object.entries(CATEGORY_LABELS).map(([value,label])=>`<button type="button" class="catalog-filter${value==="todos"?" active":""}" data-catalog-category="${value}">${label}</button>`).join("")}</div>`;
+    const categories = [{slug:"todos",name:"Todos"},...CATALOG_CATEGORIES];
+    wrapper.innerHTML = `<div class="catalog-search"><span aria-hidden="true">⌕</span><input type="search" data-catalog-search placeholder="Buscar por nome…" autocomplete="off"></div><div class="catalog-filters" role="group" aria-label="Filtrar produtos">${categories.map(category=>`<button type="button" class="catalog-filter${category.slug==="todos"?" active":""}" data-catalog-category="${escapeHtml(category.slug)}">${escapeHtml(category.name)}</button>`).join("")}</div>`;
     grid.parentNode.insertBefore(wrapper, grid);
     wrapper.querySelector("[data-catalog-search]")?.addEventListener("input",e=>{ CATALOG_QUERY=e.target.value; renderProducts(); });
     wrapper.querySelectorAll("[data-catalog-category]").forEach(btn=>btn.addEventListener("click",()=>{ CATALOG_CATEGORY=btn.dataset.catalogCategory; wrapper.querySelectorAll(".catalog-filter").forEach(b=>b.classList.toggle("active",b===btn)); renderProducts(); }));
