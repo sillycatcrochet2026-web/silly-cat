@@ -10,10 +10,13 @@
   let REVIEWS = [];
   let EXTERNAL_REVIEW_LINKS = [];
   let CATEGORIES = [];
+  let LABELS = [];
   let editingId = null;
   let editingCouponId = null;
   let editingCategoryId = null;
+  let editingLabelId = null;
   let selectCategoryAfterSave = false;
+  let selectLabelAfterSave = false;
   let IMAGE_ITEMS = [];
   let draggingImageKey = null;
 
@@ -80,7 +83,7 @@
     $("loginPanel").hidden = true;
     $("dashboard").hidden = false;
     try {
-      await loadCategories();
+      await Promise.all([loadCategories(), loadLabels()]);
       await loadProducts();
       await Promise.all([loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]);
     } catch (error) {
@@ -119,25 +122,39 @@
     setStatus(`Atualizado agora · ${PRODUCTS.length} produto(s) cadastrado(s)`);
   }
 
-  function syncProductCategoryOptions(selected = "") {
-    const select = $("productCategory");
-    if (!select) return;
-    const current = selected || select.value;
-    const available = CATEGORIES.filter((category) => category.active && !category.archived);
-    const currentCategory = CATEGORIES.find((category) => category.slug === current);
-    const options = currentCategory && !available.some((category) => category.slug === current)
-      ? [currentCategory, ...available]
-      : available;
-    select.innerHTML = options.map((category) => `<option value="${escapeHtml(category.slug)}">${escapeHtml(category.name)}${category.active && !category.archived ? "" : " · indisponível"}</option>`).join("");
-    const fallback = options.find((category) => category.slug === "outros") || options[0];
-    select.value = options.some((category) => category.slug === current) ? current : (fallback?.slug || "");
+  function selectedTaxonomySlugs(containerId) {
+    return [...document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`)].map((input) => input.value);
+  }
+
+  function syncProductTaxonomyChoices(selectedCategories = null, selectedLabels = null) {
+    const categoryContainer = $("productCategories"), labelContainer = $("productLabels");
+    if (!categoryContainer || !labelContainer) return;
+    const categorySelection = new Set(selectedCategories || selectedTaxonomySlugs("productCategories"));
+    const labelSelection = new Set(selectedLabels || selectedTaxonomySlugs("productLabels"));
+    const categoryOptions = CATEGORIES.filter((category) => (category.active && !category.archived) || categorySelection.has(category.slug));
+    const labelOptions = LABELS.filter((label) => (label.active && !label.archived) || labelSelection.has(label.slug));
+    if (!categorySelection.size) categorySelection.add(categoryOptions.find((category) => category.slug === "outros")?.slug || categoryOptions[0]?.slug || "");
+    categoryContainer.innerHTML = categoryOptions.map((category) => `<label class="taxonomy-choice${category.active && !category.archived ? "" : " unavailable"}"><input type="checkbox" value="${escapeHtml(category.slug)}" ${categorySelection.has(category.slug) ? "checked" : ""}><span>${escapeHtml(category.name)}</span></label>`).join("") || `<p class="taxonomy-choice-empty">Cadastre uma categoria ativa.</p>`;
+    labelContainer.innerHTML = labelOptions.map((label) => {
+      const flags = [label.show_on_homepage ? "Principal" : "", label.behavior === "sold_out" ? "Esgotado" : label.behavior === "made_to_order" ? "Sob encomenda" : ""].filter(Boolean).join(" · ");
+      return `<label class="taxonomy-choice${label.active && !label.archived ? "" : " unavailable"}"><input type="checkbox" value="${escapeHtml(label.slug)}" ${labelSelection.has(label.slug) ? "checked" : ""}><span>${escapeHtml(label.name)}${flags ? `<small>${escapeHtml(flags)}</small>` : ""}</span></label>`;
+    }).join("") || `<p class="taxonomy-choice-empty">Nenhuma etiqueta ativa.</p>`;
+    labelContainer.querySelectorAll('input[type="checkbox"]').forEach((input) => input.addEventListener("change", () => {
+      if (!input.checked) return;
+      const selected = LABELS.find((label) => label.slug === input.value);
+      if (!selected || !["sold_out", "made_to_order"].includes(selected.behavior)) return;
+      labelContainer.querySelectorAll('input[type="checkbox"]:checked').forEach((other) => {
+        const otherLabel = LABELS.find((label) => label.slug === other.value);
+        if (other !== input && ["sold_out", "made_to_order"].includes(otherLabel?.behavior)) other.checked = false;
+      });
+    }));
   }
 
   async function loadCategories() {
     const { data } = await api("/api/admin/categories");
     CATEGORIES = data.categories || [];
     renderCategories();
-    syncProductCategoryOptions();
+    syncProductTaxonomyChoices();
   }
 
   function filteredCategories() {
@@ -207,8 +224,8 @@
       $("categoryDialog").close();
       await loadCategories();
       if (shouldSelect) {
-        syncProductCategoryOptions(data.slug);
-        $("productCategory").value = data.slug;
+        const selected = selectedTaxonomySlugs("productCategories");
+        syncProductTaxonomyChoices([...new Set([...selected, data.slug])], null);
       }
       setStatus(`Categoria ${data.name} salva.`);
     } catch (error) { setCategoryMessage(error.message); }
@@ -224,6 +241,118 @@
 
   async function restoreCategory(id) {
     try { await api(`/api/admin/categories/${id}/restore`, { method: "POST" }); await loadCategories(); setStatus("Categoria restaurada como inativa. Edite-a para ativar."); }
+    catch (error) { setStatus(error.message, true); }
+  }
+
+  async function loadLabels() {
+    const { data } = await api("/api/admin/labels");
+    LABELS = data.labels || [];
+    renderLabels();
+    syncProductTaxonomyChoices();
+  }
+
+  function filteredLabels() {
+    const query = $("labelSearch").value.trim().toLowerCase();
+    const status = $("labelStatusFilter").value;
+    return LABELS.filter((label) => {
+      if (query && !`${label.name} ${label.slug}`.toLowerCase().includes(query)) return false;
+      if (status === "active") return label.active && !label.archived;
+      if (status === "inactive") return !label.active && !label.archived;
+      if (status === "archived") return label.archived;
+      return true;
+    });
+  }
+
+  function labelBehaviorText(label) {
+    if (label.behavior === "sold_out") return "Esgotado";
+    if (label.behavior === "made_to_order") return "Sob encomenda";
+    return "Informativa";
+  }
+
+  function renderLabels() {
+    const list = $("labelList"), items = filteredLabels();
+    $("labelEmpty").hidden = items.length > 0;
+    list.innerHTML = items.map((label) => {
+      const status = label.archived ? "ARQUIVADA" : label.active ? "ATIVA" : "INATIVA";
+      const statusClass = label.archived ? "archived" : label.active ? "available" : "provisional";
+      const locked = Number(label.product_count || 0) > 0 || label.is_system;
+      const archiveTitle = label.is_system ? "Esta etiqueta do sistema é protegida." : locked ? "Remova a etiqueta dos produtos antes de arquivar." : "Arquivar etiqueta";
+      const flags = [label.show_on_homepage ? `<span class="taxonomy-flag principal">PRINCIPAL</span>` : "", label.behavior !== "standard" ? `<span class="taxonomy-flag behavior">${escapeHtml(labelBehaviorText(label).toUpperCase())}</span>` : ""].filter(Boolean).join("");
+      return `<article class="category-admin-card label-admin-card">
+        <div><div class="category-admin-head"><strong>${escapeHtml(label.name)}</strong><span class="badge ${statusClass}">${status}</span></div><code>${escapeHtml(label.slug)}</code><div class="taxonomy-flags">${flags || `<span class="taxonomy-flag">INFORMATIVA</span>`}</div><small>Ordem ${label.sort_order}</small></div>
+        <div class="category-product-count"><strong>${Number(label.product_count || 0)}</strong><span>produto(s)</span></div>
+        <div class="row-actions">${label.archived ? `<button class="mini-btn" type="button" data-restore-label="${label.id}">Restaurar</button>` : `<button class="mini-btn" type="button" data-edit-label="${label.id}">Editar</button><button class="mini-btn danger-text" type="button" data-archive-label="${label.id}" title="${escapeHtml(archiveTitle)}" ${locked ? "disabled" : ""}>Arquivar</button>`}</div>
+      </article>`;
+    }).join("");
+    list.querySelectorAll("[data-edit-label]").forEach((button) => button.addEventListener("click", () => openLabelEditor(Number(button.dataset.editLabel))));
+    list.querySelectorAll("[data-archive-label]").forEach((button) => button.addEventListener("click", () => archiveLabel(Number(button.dataset.archiveLabel))));
+    list.querySelectorAll("[data-restore-label]").forEach((button) => button.addEventListener("click", () => restoreLabel(Number(button.dataset.restoreLabel))));
+  }
+
+  function openLabelEditor(id = null, { selectAfterSave = false } = {}) {
+    editingLabelId = id;
+    selectLabelAfterSave = selectAfterSave;
+    const label = id ? LABELS.find((item) => item.id === id) : null;
+    $("labelDialogTitle").textContent = label ? `Editar ${label.name}` : "Nova etiqueta";
+    $("labelName").value = label?.name || "";
+    $("labelSlug").value = label?.slug || "";
+    $("labelSlug").readOnly = Boolean(label);
+    delete $("labelSlug").dataset.touched;
+    const orderedLabels = LABELS.filter((item) => !item.archived);
+    $("labelSortOrder").value = label?.sort_order ?? (orderedLabels.length ? Math.max(...orderedLabels.map((item) => Number(item.sort_order || 0))) + 10 : 10);
+    $("labelBehavior").value = label?.behavior || "standard";
+    $("labelShowOnHomepage").checked = Boolean(label?.show_on_homepage);
+    $("labelActive").checked = label ? label.active : true;
+    syncLabelBehaviorNote();
+    setLabelMessage("");
+    $("labelDialog").showModal();
+  }
+
+  function syncLabelBehaviorNote() {
+    const notes = {
+      standard: "Etiquetas informativas aparecem nos produtos sem alterar a disponibilidade.",
+      sold_out: "Esgotado bloqueia compra e encomenda mesmo que ainda exista estoque registrado.",
+      made_to_order: "Sob encomenda permite pedir além do estoque e ativa o prazo de produção de até 7 dias.",
+    };
+    $("labelBehaviorNote").textContent = notes[$("labelBehavior").value] || notes.standard;
+  }
+
+  function setLabelMessage(message, ok = false) {
+    const element = $("labelAdminMessage");
+    element.textContent = message || "";
+    element.style.color = ok ? "#2d6a4f" : "";
+  }
+
+  async function saveLabel(event) {
+    event.preventDefault();
+    const button = $("saveLabelButton"); button.disabled = true; setLabelMessage("Salvando…", true);
+    const payload = {
+      name: $("labelName").value.trim(), slug: $("labelSlug").value.trim(), behavior: $("labelBehavior").value,
+      show_on_homepage: $("labelShowOnHomepage").checked, sort_order: Math.trunc(Number($("labelSortOrder").value || 0)), active: $("labelActive").checked,
+    };
+    try {
+      const { data } = await api(editingLabelId ? `/api/admin/labels/${editingLabelId}` : "/api/admin/labels", { method: editingLabelId ? "PUT" : "POST", body: JSON.stringify(payload) });
+      const shouldSelect = selectLabelAfterSave && data.active && !data.archived;
+      $("labelDialog").close();
+      await loadLabels();
+      if (shouldSelect) {
+        const selected = selectedTaxonomySlugs("productLabels");
+        syncProductTaxonomyChoices(null, [...new Set([...selected, data.slug])]);
+      }
+      setStatus(`Etiqueta ${data.name} salva.`);
+    } catch (error) { setLabelMessage(error.message); }
+    finally { button.disabled = false; }
+  }
+
+  async function archiveLabel(id) {
+    const label = LABELS.find((item) => item.id === id);
+    if (!label || !confirm(`Arquivar a etiqueta “${label.name}”?`)) return;
+    try { await api(`/api/admin/labels/${id}`, { method: "DELETE" }); await loadLabels(); setStatus("Etiqueta arquivada."); }
+    catch (error) { setStatus(error.message, true); }
+  }
+
+  async function restoreLabel(id) {
+    try { await api(`/api/admin/labels/${id}/restore`, { method: "POST" }); await loadLabels(); setStatus("Etiqueta restaurada como inativa. Edite-a para ativar."); }
     catch (error) { setStatus(error.message, true); }
   }
 
@@ -591,11 +720,13 @@
     const filter = $("statusFilter").value;
     return PRODUCTS.filter((product) => {
       const variantText = (product.variacoes || []).map((v) => v.nome).join(" ");
-      const matchText = !query || `${product.nome} ${product.id} ${product.categoria || ""} ${variantText}`.toLowerCase().includes(query);
+      const categoryText = (product.categorias || []).map((category) => `${category.name} ${category.slug}`).join(" ");
+      const labelText = (product.etiquetas || []).map((label) => `${label.name} ${label.slug}`).join(" ");
+      const matchText = !query || `${product.nome} ${product.id} ${categoryText} ${labelText} ${variantText}`.toLowerCase().includes(query);
       if (!matchText) return false;
       if (filter === "active") return product.active;
-      if (filter === "available") return product.active && Number(product.estoque) > 0;
-      if (filter === "soldout") return product.active && Number(product.estoque) <= 0;
+      if (filter === "available") return product.active && product.availability?.status === "available";
+      if (filter === "soldout") return product.active && product.availability?.status === "sold_out";
       if (filter === "archived") return !product.active;
       return true;
     });
@@ -603,7 +734,8 @@
 
   function statusBadge(product) {
     if (!product.active) return `<span class="badge archived">ARQUIVADO</span>`;
-    if (Number(product.estoque) <= 0) return `<span class="badge soldout">ESGOTADO</span>`;
+    if (product.availability?.status === "sold_out") return `<span class="badge soldout">ESGOTADO</span>`;
+    if (product.availability?.status === "made_to_order") return `<span class="badge provisional">SOB ENCOMENDA</span>`;
     return `<span class="badge available">DISPONÍVEL</span>`;
   }
 
@@ -616,13 +748,14 @@
       const image = product.img ? `<img class="product-thumb" src="${escapeHtml(product.img)}" alt="">` : `<div class="product-thumb thumb-placeholder">sem imagem</div>`;
       const variants = Array.isArray(product.variacoes) ? product.variacoes : [];
       const variantInfo = variants.length ? `<div class="product-variant-summary">${variants.length} variação(ões) · estoque total ${Number(product.estoque || 0)}</div>` : "";
-      const category = `<span class="badge category">${escapeHtml(product.categoria_label || product.categoria || "Outros")}</span>`;
+      const categories = (product.categorias || [{ name: product.categoria_label || product.categoria || "Outros" }]).map((category) => `<span class="badge category">${escapeHtml(category.name)}</span>`).join("");
+      const labels = (product.etiquetas || []).map((label) => `<span class="badge taxonomy-label">${escapeHtml(label.name)}</span>`).join("");
       const stockControl = variants.length
         ? `<div class="stock-control variant-stock-readonly"><span>${Number(product.estoque || 0)}</span><small>pelas variações</small></div>`
         : `<div class="stock-control" aria-label="Estoque de ${escapeHtml(product.nome)}"><button type="button" data-stock-minus="${escapeHtml(product.id)}">−</button><input type="number" min="0" max="9999" value="${Number(product.estoque || 0)}" data-stock-input="${escapeHtml(product.id)}" aria-label="Quantidade em estoque"><button type="button" data-stock-plus="${escapeHtml(product.id)}">+</button></div>`;
       return `<article class="product-row" data-id="${escapeHtml(product.id)}">
         ${image}
-        <div class="product-main"><h3>${escapeHtml(product.nome)}</h3><div class="product-id">${escapeHtml(product.id)}</div>${statusBadge(product)}${provisional}${category}${variantInfo}</div>
+        <div class="product-main"><h3>${escapeHtml(product.nome)}</h3><div class="product-id">${escapeHtml(product.id)}</div>${statusBadge(product)}${provisional}<div class="product-taxonomy-badges">${categories}${labels}</div>${variantInfo}</div>
         <div class="product-price">${money(product.preco_centavos)}</div>
         ${stockControl}
         <div class="product-shipping">${Number(product.frete?.largura)} × ${Number(product.frete?.altura)} × ${Number(product.frete?.comprimento)} cm<br>${Number(product.frete?.peso)} kg</div>
@@ -814,8 +947,11 @@
     $("productId").value = product?.id || ""; $("productId").readOnly = Boolean(product);
     $("productName").value = product?.nome || ""; $("productDescription").value = product?.desc || "";
     $("productPrice").value = product ? (Number(product.preco_centavos) / 100).toFixed(2) : "";
-    $("productStock").value = product?.estoque ?? 1; syncProductCategoryOptions(product?.categoria || "outros");
-    $("productTag").value = String(product?.tag || "").toLowerCase() === "novo" ? "Novo" : "";
+    $("productStock").value = product?.estoque ?? 1;
+    syncProductTaxonomyChoices(
+      (product?.categorias || []).map((category) => category.slug),
+      (product?.etiquetas || []).map((label) => label.slug),
+    );
     $("productSortOrder").value = product?.sort_order ?? (PRODUCTS.length ? Math.max(...PRODUCTS.map((p) => Number(p.sort_order || 0))) + 1 : 0);
     $("productActive").checked = product ? Boolean(product.active) : true;
     $("productWidth").value = product?.frete?.largura ?? ""; $("productHeight").value = product?.frete?.altura ?? ""; $("productLength").value = product?.frete?.comprimento ?? ""; $("productWeight").value = product?.frete?.peso ?? "";
@@ -835,9 +971,12 @@
 
   function productPayload() {
     const variants=collectVariants();
+    const categories = selectedTaxonomySlugs("productCategories");
+    const labels = selectedTaxonomySlugs("productLabels");
+    if (!categories.length) throw new Error("Selecione pelo menos uma categoria.");
     const payload = {
       id: $("productId").value.trim(), name: $("productName").value.trim(), description: $("productDescription").value.trim(), price_cents: Math.round(Number($("productPrice").value || 0) * 100),
-      tag: $("productTag").value, category: $("productCategory").value, sort_order: Math.trunc(Number($("productSortOrder").value || 0)), active: $("productActive").checked,
+      categories, labels, sort_order: Math.trunc(Number($("productSortOrder").value || 0)), active: $("productActive").checked,
       width_cm: Number($("productWidth").value), height_cm: Number($("productHeight").value), length_cm: Number($("productLength").value), weight_kg: Number($("productWeight").value), shipping_provisional: $("productProvisional").checked,
       image_refs: existingImageRefs(), variants, stock_reason: editingId ? "Edição do produto pelo painel" : "Cadastro inicial",
     };
@@ -873,7 +1012,7 @@
         const finalResult=await api(`/api/admin/products/${encodeURIComponent(id)}`,{method:"PUT",body:JSON.stringify({image_refs:finalRefs})});
         data=finalResult.data;
       }
-      $("productDialog").close(); await Promise.all([loadProducts(), loadCategories()]); setStatus(`${data.nome || payload.name} salvo com sucesso.`);
+      $("productDialog").close(); await Promise.all([loadProducts(), loadCategories(), loadLabels()]); setStatus(`${data.nome || payload.name} salvo com sucesso.`);
     } catch(error){ setProductMessage(error.message || "Não foi possível salvar."); }
     finally { button.disabled=false; }
   }
@@ -943,7 +1082,7 @@
     renderProductionOrders();
     activateAdminTab("orders", { scroll: true });
   });
-  $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadCategories(), loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]).catch((e) => setStatus(e.message, true)));
+  $("refreshButton").addEventListener("click", () => Promise.all([loadProducts(), loadCategories(), loadLabels(), loadProductionOrders(), loadCoupons(), loadReviews(), loadExternalReviewLinks()]).catch((e) => setStatus(e.message, true)));
   $("refreshProductionButton").addEventListener("click", () => loadProductionOrders().catch((e) => setStatus(e.message, true)));
   $("orderStageFilter").addEventListener("change", renderProductionOrders);
   $("exportButton").addEventListener("click", exportCatalog);
@@ -959,6 +1098,8 @@
   $("addVariantButton").addEventListener("click", () => addVariantRow());
   $("newCategoryButton").addEventListener("click", () => openCategoryEditor());
   $("quickNewCategoryButton").addEventListener("click", () => openCategoryEditor(null, { selectAfterSave: true }));
+  $("newLabelButton").addEventListener("click", () => openLabelEditor());
+  $("quickNewLabelButton").addEventListener("click", () => openLabelEditor(null, { selectAfterSave: true }));
   $("refreshCategoriesButton").addEventListener("click", () => loadCategories().catch((e) => setStatus(e.message, true)));
   $("categorySearch").addEventListener("input", renderCategories);
   $("categoryStatusFilter").addEventListener("change", renderCategories);
@@ -967,6 +1108,15 @@
   $("cancelCategoryButton").addEventListener("click", () => $("categoryDialog").close());
   $("categoryName").addEventListener("input", () => { if (!editingCategoryId && !$("categorySlug").dataset.touched) $("categorySlug").value = categorySlug($("categoryName").value); });
   $("categorySlug").addEventListener("input", () => { $("categorySlug").dataset.touched = "1"; $("categorySlug").value = categorySlug($("categorySlug").value); });
+  $("refreshLabelsButton").addEventListener("click", () => loadLabels().catch((e) => setStatus(e.message, true)));
+  $("labelSearch").addEventListener("input", renderLabels);
+  $("labelStatusFilter").addEventListener("change", renderLabels);
+  $("labelForm").addEventListener("submit", saveLabel);
+  $("closeLabelDialog").addEventListener("click", () => $("labelDialog").close());
+  $("cancelLabelButton").addEventListener("click", () => $("labelDialog").close());
+  $("labelBehavior").addEventListener("change", syncLabelBehaviorNote);
+  $("labelName").addEventListener("input", () => { if (!editingLabelId && !$("labelSlug").dataset.touched) $("labelSlug").value = categorySlug($("labelName").value); });
+  $("labelSlug").addEventListener("input", () => { $("labelSlug").dataset.touched = "1"; $("labelSlug").value = categorySlug($("labelSlug").value); });
   $("newCouponButton").addEventListener("click", () => openCouponEditor());
   $("refreshCouponsButton").addEventListener("click", () => loadCoupons().catch((e) => setStatus(e.message, true)));
   $("couponSearch").addEventListener("input", () => loadCoupons().catch((e) => setStatus(e.message, true)));

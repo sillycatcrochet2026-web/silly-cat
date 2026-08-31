@@ -24,7 +24,23 @@ E-mail SMTP de nova venda
 pedido.html mostra a confirmação
 ```
 
-A geração automática da etiqueta ainda não está habilitada, mas os dados necessários já ficam salvos no D1 para a próxima etapa.
+A geração de etiquetas de envio já está integrada ao Worker. Pedidos com produção pendente aguardam a conclusão no Admin antes de gerar a etiqueta.
+
+## Versão v3.0 — categorias e etiquetas
+
+- um produto pode pertencer a várias categorias;
+- etiquetas são criadas e gerenciadas no mesmo painel das categorias;
+- qualquer etiqueta pode ser marcada como **Principal**, exibindo seus produtos na página inicial;
+- **Esgotado** bloqueia compra e encomenda no frontend e no Worker;
+- **Sob encomenda** permite pedir além do estoque e ativa o prazo de produção;
+- as regras críticas continuam sendo validadas pelo Worker.
+
+Antes de publicar o frontend v3.0, aplique no D1 e publique o Worker atualizado:
+
+```bash
+npx wrangler d1 execute silly-cat-orders --remote --file=./migrations/010_product_taxonomy.sql
+npx wrangler deploy
+```
 
 ---
 
