@@ -17,6 +17,8 @@ let COUPON_CODE = "";
 let COUPON_RESULT = null;
 let CATALOG_QUERY = "";
 let CATALOG_CATEGORY = "todos";
+const EXPANDED_PRODUCT_DESCRIPTIONS = new Set();
+let PRODUCT_DESCRIPTION_UID = 0;
 let CHECKOUT_DATA = {
   cep:"", name:"", email:"", phone:"", document:"", street:"", neighborhood:"", number:"", complement:"", city:"", state:""
 };
@@ -106,12 +108,17 @@ function productCard(product, index){
   const madeToOrder = variants.length ? variants.every(v=>effectiveStock(product,v)<=0) : Number(product.estoque)<=0;
   const ratingCount = Number(product.rating_count || 0);
   const ratingMarkup = ratingCount > 0 ? `<button class="product-rating" type="button" data-show-reviews="${escapeHtml(product.id)}" aria-label="Ver melhores avaliações de ${escapeHtml(product.nome)}"><span aria-hidden="true">★</span> ${Number(product.rating_average || 0).toFixed(1).replace(".", ",")} <small>(${ratingCount})</small></button>` : "";
+  const descriptionKey = String(product.id || index);
+  const descriptionExpanded = EXPANDED_PRODUCT_DESCRIPTIONS.has(descriptionKey);
   return `<article class="product-card reveal" style="--i:${index}" data-product-card="${escapeHtml(product.id)}">
     ${carouselMarkup(product,index)}
     <div class="product-body">
       <h3 class="product-name">${escapeHtml(product.nome)}</h3>
       ${ratingMarkup}
-      <p class="product-desc">${escapeHtml(product.desc)}</p>
+      <div class="product-desc-block" data-product-description="${escapeHtml(descriptionKey)}">
+        <p class="product-desc${descriptionExpanded ? " is-expanded" : ""}">${escapeHtml(product.desc)}</p>
+        <div class="product-desc-footer"><button class="product-desc-toggle" type="button" data-description-toggle aria-expanded="${descriptionExpanded ? "true" : "false"}">${descriptionExpanded ? "Ver menos" : "Ver mais"}</button></div>
+      </div>
       <p class="price" data-product-price>${priceLabel}</p>
       ${variantMarkup}
       <div class="product-actions"><button class="soft-btn add-cart-btn" type="button" data-add-cart="${escapeHtml(product.id)}">${madeToOrder ? "Encomendar" : "Adicionar ao carrinho"}</button></div>
@@ -155,6 +162,35 @@ function initCarousels(scope=document){
   });
 }
 
+function initProductDescriptions(scope=document){
+  scope.querySelectorAll("[data-product-description]").forEach((block,index)=>{
+    const description=block.querySelector(".product-desc"), button=block.querySelector("[data-description-toggle]");
+    if(!description || !button) return;
+    const key=String(block.dataset.productDescription || index);
+    const wantedExpanded=EXPANDED_PRODUCT_DESCRIPTIONS.has(key);
+    description.classList.remove("is-expanded");
+    const canExpand=description.scrollHeight > description.clientHeight + 1;
+    description.id=`product-description-${key.replace(/[^a-zA-Z0-9_-]/g,"-")}-${++PRODUCT_DESCRIPTION_UID}`;
+    button.setAttribute("aria-controls",description.id);
+    button.hidden=!canExpand;
+    if(!canExpand){
+      EXPANDED_PRODUCT_DESCRIPTIONS.delete(key);
+      button.setAttribute("aria-expanded","false");
+      return;
+    }
+    description.classList.toggle("is-expanded",wantedExpanded);
+    button.setAttribute("aria-expanded",String(wantedExpanded));
+    button.textContent=wantedExpanded ? "Ver menos" : "Ver mais";
+    button.addEventListener("click",()=>{
+      const expanded=button.getAttribute("aria-expanded") !== "true";
+      description.classList.toggle("is-expanded",expanded);
+      button.setAttribute("aria-expanded",String(expanded));
+      button.textContent=expanded ? "Ver menos" : "Ver mais";
+      if(expanded) EXPANDED_PRODUCT_DESCRIPTIONS.add(key); else EXPANDED_PRODUCT_DESCRIPTIONS.delete(key);
+    });
+  });
+}
+
 function renderProducts(){
   const pageAlreadyRevealed = document.body.classList.contains("reveal-ready");
   document.querySelectorAll("[data-products]").forEach(grid=>{
@@ -164,6 +200,7 @@ function renderProducts(){
     grid.innerHTML = items.length ? items.map(productCard).join("") : `<div class="catalog-empty">Nenhum produto encontrado para essa busca.</div>`;
     if(pageAlreadyRevealed) grid.querySelectorAll(".reveal").forEach(item=>item.classList.add("in"));
     initCarousels(grid);
+    initProductDescriptions(grid);
   });
   document.querySelectorAll("[data-add-cart]").forEach(btn=>btn.addEventListener("click",()=>{
     const select=document.querySelector(`[data-product-variant="${CSS.escape(btn.dataset.addCart)}"]`);
