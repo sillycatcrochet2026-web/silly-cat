@@ -42,6 +42,15 @@ npx wrangler d1 execute silly-cat-orders --remote --file=./migrations/010_produc
 npx wrangler deploy
 ```
 
+## Versão v3.1 — página detalhada do produto
+
+- cada produto disponível abre em `produto.html?id=ID_DO_PRODUTO`;
+- a página mostra galeria de fotos, etiquetas, categorias, preço, variações, estoque, descrição, dimensões e avaliações;
+- a quantidade escolhida é enviada diretamente ao carrinho;
+- as regras **Esgotado** e **Sob encomenda** são respeitadas automaticamente;
+- produtos novos cadastrados no Admin usam a mesma página, sem criar outro arquivo HTML;
+- esta atualização é somente do frontend e não exige nova migração do D1.
+
 ---
 
 ## 1. O que você precisa ter

@@ -75,6 +75,7 @@ function variantById(product, variantId){ return productVariants(product).find(v
 function effectivePrice(product, variant){ return Number(variant?.preco_centavos ?? product?.preco_centavos ?? 0); }
 function effectiveStock(product, variant){ return Math.max(0, Number(variant ? variant.estoque : product?.estoque || 0)); }
 function cartLineKey(id, variantId=""){ return `${id}::${variantId || ""}`; }
+function productDetailHref(product){ return `produto.html?id=${encodeURIComponent(String(product?.id || ""))}`; }
 
 async function loadCatalog(){
   try{
@@ -110,14 +111,16 @@ function productById(id){ return PRODUTOS.find(product => product.id === id); }
 function carouselMarkup(product, index){
   const images = productImages(product);
   const labels = productLabels(product);
+  const detailHref = productDetailHref(product);
+  const detailLink = `<a class="product-media-detail-link" href="${escapeHtml(detailHref)}" aria-label="Ver detalhes de ${escapeHtml(product.nome)}"></a>`;
   const badges = labels.length ? `<div class="product-badges">${labels.map(label=>{
     const behaviorClass=label.behavior==="sold_out"?" product-badge--esgotado":label.behavior==="made_to_order"?" product-badge--sob-encomenda":"";
     return `<span class="product-badge${behaviorClass}">${escapeHtml(label.name)}</span>`;
   }).join("")}</div>` : "";
-  if(!images.length) return `<div class="product-media" style="background:${['#e6edf8','#fffddc','#dbe5f5','#ffffff'][index%4]}"><div class="product-placeholder">${sillyCatSvg()}</div>${badges}</div>`;
+  if(!images.length) return `<div class="product-media" style="background:${['#e6edf8','#fffddc','#dbe5f5','#ffffff'][index%4]}"><div class="product-placeholder">${sillyCatSvg()}</div>${detailLink}${badges}</div>`;
   const slides = images.map((src,i)=>`<img class="product-carousel-slide${i===0?" active":""}" src="${escapeHtml(src)}" alt="${escapeHtml(product.nome)}${images.length>1?` — foto ${i+1}`:""}" loading="lazy">`).join("");
   const controls = images.length > 1 ? `<button type="button" class="carousel-arrow prev" data-carousel-prev aria-label="Foto anterior">‹</button><button type="button" class="carousel-arrow next" data-carousel-next aria-label="Próxima foto">›</button><div class="carousel-dots">${images.map((_,i)=>`<button type="button" class="carousel-dot${i===0?" active":""}" data-carousel-dot="${i}" aria-label="Ver foto ${i+1}"></button>`).join("")}</div>` : "";
-  return `<div class="product-media product-carousel" data-carousel-index="0" style="background:${['#e6edf8','#fffddc','#dbe5f5','#ffffff'][index%4]}">${slides}${controls}${badges}</div>`;
+  return `<div class="product-media product-carousel" data-carousel-index="0" style="background:${['#e6edf8','#fffddc','#dbe5f5','#ffffff'][index%4]}">${slides}${detailLink}${controls}${badges}</div>`;
 }
 
 function productCard(product, index){
@@ -136,10 +139,11 @@ function productCard(product, index){
   const ratingMarkup = ratingCount > 0 ? `<button class="product-rating" type="button" data-show-reviews="${escapeHtml(product.id)}" aria-label="Ver melhores avaliações de ${escapeHtml(product.nome)}"><span aria-hidden="true">★</span> ${Number(product.rating_average || 0).toFixed(1).replace(".", ",")} <small>(${ratingCount})</small></button>` : "";
   const descriptionKey = String(product.id || index);
   const descriptionExpanded = EXPANDED_PRODUCT_DESCRIPTIONS.has(descriptionKey);
+  const detailHref = productDetailHref(product);
   return `<article class="product-card reveal" style="--i:${index}" data-product-card="${escapeHtml(product.id)}">
     ${carouselMarkup(product,index)}
     <div class="product-body">
-      <h3 class="product-name">${escapeHtml(product.nome)}</h3>
+      <h3 class="product-name"><a href="${escapeHtml(detailHref)}">${escapeHtml(product.nome)}</a></h3>
       ${ratingMarkup}
       <div class="product-desc-block" data-product-description="${escapeHtml(descriptionKey)}">
         <p class="product-desc${descriptionExpanded ? " is-expanded" : ""}">${escapeHtml(product.desc)}</p>
@@ -147,9 +151,135 @@ function productCard(product, index){
       </div>
       <p class="price" data-product-price>${priceLabel}</p>
       ${variantMarkup}
-      <div class="product-actions"><button class="soft-btn add-cart-btn" type="button" data-add-cart="${escapeHtml(product.id)}" ${initialAvailability.canOrder?"":"disabled aria-disabled=\"true\""}>${initialAvailability.label}</button></div>
+      <div class="product-actions"><a class="soft-btn secondary product-detail-link" href="${escapeHtml(detailHref)}">Ver detalhes</a><button class="soft-btn add-cart-btn" type="button" data-add-cart="${escapeHtml(product.id)}" ${initialAvailability.canOrder?"":"disabled aria-disabled=\"true\""}>${initialAvailability.label}</button></div>
     </div>
   </article>`;
+}
+
+function detailOrderState(product, variant, quantity=1){
+  const availability=unitAvailability(product,variant);
+  const wanted=Math.min(MAX_CART_QUANTITY,Math.max(1,Math.floor(Number(quantity||1))));
+  if(!availability.canOrder){
+    return {availability,wanted,productionUnits:0,tone:"sold-out",buttonLabel:"Esgotado",message:"Este produto está esgotado e não aceita encomendas no momento."};
+  }
+  const productionUnits=availability.allowsBackorder?Math.max(0,wanted-availability.stock):0;
+  if(availability.status==="made_to_order" || productionUnits>0){
+    const units=productionUnits || wanted;
+    return {availability,wanted,productionUnits:units,tone:"made-to-order",buttonLabel:"Encomendar",message:`${units} ${units===1?"unidade será produzida":"unidades serão produzidas"} em até 7 dias antes do envio.`};
+  }
+  if(availability.allowsBackorder){
+    return {availability,wanted,productionUnits:0,tone:"available",buttonLabel:"Adicionar ao carrinho",message:`Pronta entrega: ${availability.stock} ${availability.stock===1?"unidade disponível":"unidades disponíveis"}. Quantidades adicionais podem ser encomendadas.`};
+  }
+  return {availability,wanted,productionUnits:0,tone:"available",buttonLabel:"Adicionar ao carrinho",message:`Pronta entrega · ${availability.stock} ${availability.stock===1?"unidade disponível":"unidades disponíveis"}.`};
+}
+
+function renderProductDetail(){
+  const root=document.querySelector("[data-product-detail]");
+  if(!root) return;
+  const productId=new URLSearchParams(window.location.search).get("id") || "";
+  const product=productById(productId);
+  if(!product){
+    root.innerHTML=`<section class="product-detail-empty"><span aria-hidden="true">🧶</span><h1>Produto não encontrado</h1><p>Este item pode ter sido removido ou o endereço está incompleto.</p><a class="soft-btn" href="produtos.html">Ver todos os produtos</a></section>`;
+    return;
+  }
+
+  const images=productImages(product);
+  const variants=productVariants(product);
+  const initialVariant=variants.find(variant=>unitAvailability(product,variant).canOrder) || variants[0] || null;
+  const initialState=detailOrderState(product,initialVariant,1);
+  const labels=productLabels(product);
+  const categories=productCategories(product);
+  const dimensions=formatProductDimensions(product);
+  const ratingCount=Number(product.rating_count||0);
+  const ratingAverage=Number(product.rating_average||0);
+  const mainImage=images.length
+    ? `<img data-detail-main-image src="${escapeHtml(images[0])}" alt="${escapeHtml(product.nome)} — foto 1"><div class="product-detail-placeholder" data-detail-image-fallback hidden>${sillyCatSvg()}</div>`
+    : `<div class="product-detail-placeholder">${sillyCatSvg()}</div>`;
+  const thumbnails=images.length>1 ? `<div class="product-detail-thumbnails" role="list" aria-label="Fotos de ${escapeHtml(product.nome)}">${images.map((src,index)=>`<button class="product-detail-thumbnail${index===0?" active":""}" type="button" data-detail-thumbnail="${index}" data-image-src="${escapeHtml(src)}" aria-label="Ver foto ${index+1}" aria-pressed="${index===0?"true":"false"}"><img src="${escapeHtml(src)}" alt="" loading="lazy"></button>`).join("")}</div>` : "";
+  const badges=labels.length ? `<div class="product-detail-badges">${labels.map(label=>{
+    const behaviorClass=label.behavior==="sold_out"?" product-badge--esgotado":label.behavior==="made_to_order"?" product-badge--sob-encomenda":"";
+    return `<span class="product-badge${behaviorClass}">${escapeHtml(label.name)}</span>`;
+  }).join("")}</div>` : "";
+  const categoryMarkup=categories.length ? `<div class="product-detail-categories" aria-label="Categorias">${categories.map(category=>`<span>${escapeHtml(category.name||category.slug)}</span>`).join("")}</div>` : "";
+  const ratingMarkup=`<button class="product-detail-rating${ratingCount?"":" is-empty"}" type="button" data-detail-reviews aria-label="${ratingCount?`Ver ${ratingCount} avaliações de ${product.nome}`:`Ver avaliações de ${product.nome}`}"><span aria-hidden="true">★★★★★</span>${ratingCount?`${ratingAverage.toFixed(1).replace(".",",")} · ${ratingCount} ${ratingCount===1?"avaliação":"avaliações"}`:"Ainda sem avaliações"}</button>`;
+  const variantMarkup=variants.length ? `<label class="product-detail-field" for="productDetailVariant"><span>Escolha a variação</span><select id="productDetailVariant" data-detail-variant>${variants.map(variant=>{
+    const availability=unitAvailability(product,variant);
+    const suffix=availability.status==="made_to_order"?" · sob encomenda":availability.canOrder?` · ${availability.stock} em estoque`:" · esgotado";
+    return `<option value="${escapeHtml(variant.id)}"${variant.id===initialVariant?.id?" selected":""}${availability.canOrder?"":" disabled"}>${escapeHtml(variant.nome)}${suffix}</option>`;
+  }).join("")}</select></label>` : "";
+
+  root.innerHTML=`
+    <nav class="product-detail-breadcrumb" aria-label="Navegação estrutural"><a href="index.html">Início</a><span aria-hidden="true">›</span><a href="produtos.html">Produtos</a><span aria-hidden="true">›</span><span aria-current="page">${escapeHtml(product.nome)}</span></nav>
+    <section class="product-detail-layout" aria-labelledby="productDetailTitle">
+      <div class="product-detail-gallery">
+        <div class="product-detail-main-image">${mainImage}${badges}</div>
+        ${thumbnails}
+      </div>
+      <article class="product-detail-purchase">
+        <p class="product-detail-eyebrow">Feito à mão pela Silly Cat</p>
+        <h1 id="productDetailTitle">${escapeHtml(product.nome)}</h1>
+        <p class="product-detail-code">Código do produto: ${escapeHtml(product.id)}</p>
+        ${ratingMarkup}
+        ${categoryMarkup}
+        <p class="product-detail-price" data-detail-price>${formatBRL(effectivePrice(product,initialVariant))}</p>
+        <p class="product-detail-payment-note">Pagamento seguro por Pix ou cartão via InfinitePay.</p>
+        ${variantMarkup}
+        <div class="product-detail-availability ${initialState.tone}" data-detail-availability role="status">${escapeHtml(initialState.message)}</div>
+        <div class="product-detail-order-row">
+          <div class="product-detail-quantity" aria-label="Quantidade">
+            <span>Quantidade</span>
+            <div><button type="button" data-detail-quantity-minus aria-label="Diminuir quantidade">−</button><input data-detail-quantity type="number" inputmode="numeric" min="1" value="1" aria-label="Quantidade de ${escapeHtml(product.nome)}"><button type="button" data-detail-quantity-plus aria-label="Aumentar quantidade">+</button></div>
+          </div>
+          <button class="soft-btn product-detail-buy" type="button" data-detail-add-cart ${initialState.availability.canOrder?"":"disabled aria-disabled=\"true\""}>${escapeHtml(initialState.buttonLabel)}</button>
+        </div>
+        <div class="product-detail-shipping"><span aria-hidden="true">📦</span><div><strong>Calcule o frete no carrinho</strong><p>Adicione o produto e informe seu CEP para ver as opções de envio.</p></div></div>
+        <div class="product-detail-assurances"><span>♡ Peça artesanal</span><span>🔒 Pagamento protegido</span><span>↗ Envio para todo o Brasil</span></div>
+      </article>
+    </section>
+    <section class="product-detail-info" aria-label="Informações do produto">
+      <article><span class="product-detail-info-icon" aria-hidden="true">✿</span><h2>Detalhes da peça</h2><p>${escapeHtml(product.desc||"Peça artesanal feita com cuidado pela Silly Cat.")}</p></article>
+      <article><span class="product-detail-info-icon" aria-hidden="true">↔</span><h2>Dimensões para envio</h2><p>${dimensions?escapeHtml(dimensions):"As medidas e o peso serão confirmados no preparo do envio."}</p></article>
+      <article><span class="product-detail-info-icon" aria-hidden="true">🧶</span><h2>Produção e prazo</h2><p>${productAllowsBackorder(product)?"Quando a quantidade ultrapassar o estoque, a produção pode levar até 7 dias antes do envio.":"Produto disponível conforme o estoque indicado acima."}</p></article>
+    </section>`;
+
+  document.title=`${product.nome} — Silly Cat Crochê`;
+  const descriptionMeta=document.querySelector('meta[name="description"]');
+  if(descriptionMeta) descriptionMeta.setAttribute("content",String(product.desc||`${product.nome}, feito à mão pela Silly Cat Crochê.`).slice(0,160));
+
+  const mainImageElement=root.querySelector("[data-detail-main-image]");
+  const fallbackElement=root.querySelector("[data-detail-image-fallback]");
+  mainImageElement?.addEventListener("error",()=>{mainImageElement.hidden=true;if(fallbackElement)fallbackElement.hidden=false;});
+  root.querySelectorAll("[data-detail-thumbnail]").forEach(button=>button.addEventListener("click",()=>{
+    if(!mainImageElement) return;
+    mainImageElement.hidden=false;
+    if(fallbackElement) fallbackElement.hidden=true;
+    mainImageElement.src=button.dataset.imageSrc||"";
+    mainImageElement.alt=`${product.nome} — foto ${Number(button.dataset.detailThumbnail)+1}`;
+    root.querySelectorAll("[data-detail-thumbnail]").forEach(item=>{const active=item===button;item.classList.toggle("active",active);item.setAttribute("aria-pressed",String(active));});
+  }));
+
+  const variantSelect=root.querySelector("[data-detail-variant]");
+  const quantityInput=root.querySelector("[data-detail-quantity]");
+  const availabilityElement=root.querySelector("[data-detail-availability]");
+  const priceElement=root.querySelector("[data-detail-price]");
+  const addButton=root.querySelector("[data-detail-add-cart]");
+  const selectedVariant=()=>variantById(product,variantSelect?.value||"");
+  const syncPurchase=()=>{
+    const variant=selectedVariant();
+    const state=detailOrderState(product,variant,quantityInput?.value||1);
+    const max=state.availability.allowsBackorder?MAX_CART_QUANTITY:Math.max(1,Math.min(MAX_CART_QUANTITY,state.availability.stock));
+    if(quantityInput){quantityInput.max=String(max);quantityInput.value=String(Math.min(max,state.wanted));}
+    if(priceElement) priceElement.textContent=formatBRL(effectivePrice(product,variant));
+    if(availabilityElement){availabilityElement.className=`product-detail-availability ${state.tone}`;availabilityElement.textContent=state.message;}
+    if(addButton){addButton.textContent=state.buttonLabel;addButton.disabled=!state.availability.canOrder;addButton.setAttribute("aria-disabled",String(!state.availability.canOrder));}
+  };
+  variantSelect?.addEventListener("change",syncPurchase);
+  quantityInput?.addEventListener("change",syncPurchase);
+  root.querySelector("[data-detail-quantity-minus]")?.addEventListener("click",()=>{if(quantityInput){quantityInput.value=String(Math.max(1,Number(quantityInput.value||1)-1));syncPurchase();}});
+  root.querySelector("[data-detail-quantity-plus]")?.addEventListener("click",()=>{if(quantityInput){quantityInput.value=String(Number(quantityInput.value||1)+1);syncPurchase();}});
+  addButton?.addEventListener("click",()=>addToCart(product.id,variantSelect?.value||"",quantityInput?.value||1));
+  root.querySelector("[data-detail-reviews]")?.addEventListener("click",()=>openProductReviews(product.id));
+  syncPurchase();
 }
 
 function filteredProducts(items){
@@ -262,7 +392,7 @@ function sanitizeCart(){
     return [{id:item.id,variant_id:variantId,quantity:Math.min(max,Math.max(1,Math.floor(Number(item.quantity||1))))}];
   }); saveCart();
 }
-function addToCart(id, variantId=""){
+function addToCart(id, variantId="", quantity=1){
   const product=productById(id); if(!product) return;
   const variants=productVariants(product); const variant=variants.length ? (variantById(product,variantId)||variants[0]) : null;
   const availability=unitAvailability(product,variant);
@@ -270,8 +400,9 @@ function addToCart(id, variantId=""){
   const key=cartLineKey(id,variant?.id||"");
   const existing=CART.find(item=>cartLineKey(item.id,item.variant_id)===key);
   const max=availability.allowsBackorder?MAX_CART_QUANTITY:Math.min(MAX_CART_QUANTITY,availability.stock);
-  if(existing) existing.quantity=Math.min(max,existing.quantity+1);
-  else CART.push({id,variant_id:variant?.id||"",quantity:1});
+  const requested=Math.min(max,Math.max(1,Math.floor(Number(quantity||1))));
+  if(existing) existing.quantity=Math.min(max,existing.quantity+requested);
+  else CART.push({id,variant_id:variant?.id||"",quantity:requested});
   saveCart(); resetShipping();
   showToast(`${product.nome}${variant?` · ${variant.nome}`:""} foi para o carrinho ♡`);
   renderProducts(); renderCart(); openCart();
@@ -826,6 +957,7 @@ document.addEventListener("DOMContentLoaded", async ()=>{
   sanitizeCart();
   ensureCatalogControls();
   renderProducts();
+  renderProductDetail();
   renderCart();
   initReveal();
   initPaymentResult();
