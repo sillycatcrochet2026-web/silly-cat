@@ -218,7 +218,6 @@ function renderProductDetail(){
       <article class="product-detail-purchase">
         <p class="product-detail-eyebrow">Feito à mão pela Silly Cat</p>
         <h1 id="productDetailTitle">${escapeHtml(product.nome)}</h1>
-        <p class="product-detail-code">Código do produto: ${escapeHtml(product.id)}</p>
         ${ratingMarkup}
         ${categoryMarkup}
         <p class="product-detail-price" data-detail-price>${formatBRL(effectivePrice(product,initialVariant))}</p>

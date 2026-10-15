@@ -51,6 +51,12 @@ npx wrangler deploy
 - produtos novos cadastrados no Admin usam a mesma página, sem criar outro arquivo HTML;
 - esta atualização é somente do frontend e não exige nova migração do D1.
 
+### Ajuste v3.1.1 — diagramação
+
+- remove o código interno do produto da página pública;
+- reduz e equilibra o título para nomes curtos e longos;
+- melhora a quebra de linha e os espaçamentos em computador e celular.
+
 ---
 
 ## 1. O que você precisa ter
