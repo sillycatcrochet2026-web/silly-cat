@@ -2247,6 +2247,7 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important;box-shad
 .product-badges .product-badge{position:static;max-width:100%;padding:6px 13px;font-size:.72rem;line-height:1.15;text-align:right;white-space:normal}
 .product-badge--esgotado{background:#fde8e5!important;color:#8f0900!important}
 .product-badge--sob-encomenda{background:#fff3c7!important;color:#7a5200!important}
+.product-badge--digital{background:#e5f5ef!important;color:#23614a!important}
 .add-cart-btn:disabled{box-shadow:none;transform:none;cursor:not-allowed;opacity:.72}
 
 /* ===== v3.1 · página detalhada do produto ===== */
@@ -2348,6 +2349,7 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important;box-shad
 .product-detail-availability.available{background:#edf8f1;border-color:#bddfc9;color:#25613f}
 .product-detail-availability.made-to-order{background:#fff6d9;border-color:#ead28e;color:#745000}
 .product-detail-availability.sold-out{background:#fdecea;border-color:#efc1bb;color:#8f0900}
+.product-detail-availability.digital{background:#eaf7f2;border-color:#afd9c8;color:#205b45}
 .product-detail-order-row{display:grid;grid-template-columns:auto minmax(190px,1fr);gap:14px;align-items:end}
 .product-detail-quantity{display:grid;gap:7px;color:#4c463e;font-size:.8rem;font-weight:900}
 .product-detail-quantity>div{display:grid;grid-template-columns:38px 54px 38px;align-items:center;border:2px solid rgba(121,150,203,.38);border-radius:999px;overflow:hidden;background:white}
@@ -2361,6 +2363,8 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important;box-shad
 .product-detail-shipping>span{font-size:1.35rem;line-height:1.2}
 .product-detail-shipping strong{display:block;font-size:.87rem;color:#2f3d59}
 .product-detail-shipping p{font-size:.76rem;font-weight:700;line-height:1.4;margin-top:2px}
+.product-detail-shipping.digital{background:#eaf7f2;color:#285b48}.product-detail-shipping.digital strong{color:#20513e}
+.product-detail-quantity[hidden]+.product-detail-buy{grid-column:1/-1}
 .product-detail-assurances{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:17px;color:#5e574f;font-size:.73rem;font-weight:800}
 
 .product-detail-info{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:34px}
@@ -2391,3 +2395,9 @@ button:disabled{cursor:not-allowed;opacity:.58;transform:none!important;box-shad
   .product-detail-info article:last-child{grid-column:auto}
   .product-actions{display:grid;grid-template-columns:1fr}
 }
+
+/* ===== v3.2 · receitas digitais ===== */
+.cart-item-availability.digital{color:#246048;background:#e9f7f1;padding:4px 8px;border-radius:999px;width:max-content}
+.cart-digital-quantity{width:max-content;margin-top:8px;padding:7px 10px;border-radius:10px;background:#e9f7f1;color:#246048;font-size:.76rem;font-weight:900}
+.digital-delivery-notice{margin:14px 0;padding:15px;border:1px solid #afd9c8;border-radius:16px;background:#eaf7f2;color:#205b45}.digital-delivery-notice strong{display:block}.digital-delivery-notice p{margin:4px 0 0;font-size:.82rem;font-weight:700;line-height:1.45}
+.digital-downloads{display:grid;gap:10px;margin:22px auto;padding:20px;max-width:520px;border:1.5px solid #afd9c8;border-radius:18px;background:#eaf7f2}.digital-downloads h3,.digital-downloads p{margin:0}.digital-downloads small{color:#4f665d}.digital-download-button{display:block;text-decoration:none}

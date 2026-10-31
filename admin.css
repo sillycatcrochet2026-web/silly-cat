@@ -102,3 +102,6 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{
 @media(max-width:980px){.taxonomy-admin-grid{grid-template-columns:1fr}.taxonomy-admin-column .category-admin-card{grid-template-columns:minmax(220px,1fr) 100px auto}.taxonomy-admin-column .category-admin-card .row-actions{grid-column:auto;justify-content:flex-end}}
 @media(max-width:760px){.taxonomy-admin-column .category-toolbar,.taxonomy-admin-column .category-admin-card,.product-taxonomy-grid{grid-template-columns:1fr}.taxonomy-admin-column .category-product-count{grid-column:auto;grid-row:auto;text-align:left}.taxonomy-admin-column .category-admin-card .row-actions{grid-column:auto;justify-content:flex-start}}
 @media(max-width:520px){.taxonomy-admin-column{padding:14px}.compact-heading .primary-btn{width:100%}}
+
+/* ===== v3.2 · receitas digitais ===== */
+.badge.digital{background:#e4f3ea;color:#24583f}.digital-file-editor{margin-bottom:18px;padding:16px;border:1.5px solid #a9d3c2;border-radius:16px;background:#eef9f4}.digital-file-editor h3{margin-top:0}.digital-file-status{margin-top:10px;padding:10px 12px;border-radius:11px;background:#fff;color:#3d5f52;font-size:.8rem;font-weight:800;overflow-wrap:anywhere}

@@ -237,6 +237,13 @@
           <label>Nome
             <input id="productName" type="text" maxlength="160" required>
           </label>
+          <label>Modalidade de venda
+            <select id="productSaleType">
+              <option value="physical">Produto físico</option>
+              <option value="digital">Receita de crochê — arquivo PDF</option>
+            </select>
+            <small>Receitas digitais não usam estoque nem frete. O PDF é liberado somente após o pagamento.</small>
+          </label>
           <label>Descrição
             <textarea id="productDescription" maxlength="1000" rows="4"></textarea>
           </label>
@@ -244,7 +251,7 @@
             <label>Preço (R$)
               <input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" required>
             </label>
-            <label>Estoque
+            <label id="productStockField">Estoque
               <input id="productStock" type="number" min="0" max="9999" step="1" inputmode="numeric" required>
             </label>
           </div>
@@ -265,7 +272,7 @@
           </label>
           <label class="check-row"><input id="productActive" type="checkbox" checked> Produto ativo na loja</label>
 
-          <div class="variant-editor">
+          <div class="variant-editor" id="variantEditor">
             <div class="editor-subhead"><div><h3>Variações</h3><small>Opcional. Cada variação possui seu próprio estoque; o preço pode herdar o preço base.</small></div><button class="ghost-btn small" type="button" id="addVariantButton">+ Adicionar variação</button></div>
             <div id="variantRows" class="variant-rows"></div>
             <p class="variant-empty-help" id="variantEmptyHelp">Sem variações: o estoque acima vale para o produto inteiro.</p>
@@ -273,14 +280,26 @@
         </section>
 
         <section class="editor-section">
-          <h3>Frete</h3>
-          <div class="shipping-grid">
+          <div id="physicalProductFields">
+            <h3>Frete</h3>
+            <div class="shipping-grid">
             <label>Largura (cm)<input id="productWidth" type="number" min="0.1" step="0.1" required></label>
             <label>Altura (cm)<input id="productHeight" type="number" min="0.1" step="0.1" required></label>
             <label>Comprimento (cm)<input id="productLength" type="number" min="0.1" step="0.1" required></label>
             <label>Peso (kg)<input id="productWeight" type="number" min="0.001" step="0.001" required></label>
+            </div>
+            <label class="check-row"><input id="productProvisional" type="checkbox"> Medidas provisórias</label>
           </div>
-          <label class="check-row"><input id="productProvisional" type="checkbox"> Medidas provisórias</label>
+
+          <div class="digital-file-editor" id="digitalProductFields" hidden>
+            <h3>Arquivo da receita</h3>
+            <p class="field-help">O PDF fica protegido e só poderá ser baixado depois da confirmação do pagamento.</p>
+            <label>Enviar receita em PDF
+              <input id="productDigitalFile" type="file" accept="application/pdf,.pdf">
+              <small id="digitalFileHelp">PDF de até 25 MB.</small>
+            </label>
+            <div class="digital-file-status" id="digitalFileStatus">Nenhum PDF enviado.</div>
+          </div>
 
           <h3 class="image-heading">Imagens</h3>
           <p class="field-help">Arraste as imagens ou use as setas para mudar a ordem. A primeira será a capa; remova com a lixeira. As alterações são aplicadas ao salvar o produto.</p>

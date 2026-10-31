@@ -51,7 +51,12 @@ function productAllowsBackorder(product){
   if(productBlocksOrders(product)) return false;
   return Boolean(product?.availability?.allows_backorder) || productLabels(product).some(label=>label.behavior==="made_to_order");
 }
+function productIsDigital(product){ return product?.sale_type === "digital" || product?.is_digital === true; }
 function unitAvailability(product,variant=null){
+  if(productIsDigital(product)){
+    const ready=Boolean(product?.digital_delivery?.file_ready) && !productBlocksOrders(product);
+    return {status:ready?"digital":"sold_out",stock:ready?1:0,canOrder:ready,allowsBackorder:false,label:ready?"Comprar receita PDF":"PDF indisponível"};
+  }
   const stock=effectiveStock(product,variant);
   if(productBlocksOrders(product)) return {status:"sold_out",stock,canOrder:false,allowsBackorder:false,label:"Esgotado"};
   if(stock>0) return {status:"available",stock,canOrder:true,allowsBackorder:productAllowsBackorder(product),label:"Adicionar ao carrinho"};
@@ -59,6 +64,7 @@ function unitAvailability(product,variant=null){
   return {status:"sold_out",stock,canOrder:false,allowsBackorder:false,label:"Esgotado"};
 }
 function formatProductDimensions(product){
+  if(productIsDigital(product)) return "";
   const frete = product?.frete || {};
   const width = Number(frete.largura || 0), height = Number(frete.altura || 0), length = Number(frete.comprimento || 0), weight = Number(frete.peso || 0);
   if(!(width > 0 && height > 0 && length > 0)) return "";
@@ -73,7 +79,7 @@ function productImages(product){
 function productVariants(product){ return Array.isArray(product?.variacoes) ? product.variacoes.filter(v=>v && v.id) : []; }
 function variantById(product, variantId){ return productVariants(product).find(v=>String(v.id)===String(variantId || "")) || null; }
 function effectivePrice(product, variant){ return Number(variant?.preco_centavos ?? product?.preco_centavos ?? 0); }
-function effectiveStock(product, variant){ return Math.max(0, Number(variant ? variant.estoque : product?.estoque || 0)); }
+function effectiveStock(product, variant){ return productIsDigital(product) ? 1 : Math.max(0, Number(variant ? variant.estoque : product?.estoque || 0)); }
 function cartLineKey(id, variantId=""){ return `${id}::${variantId || ""}`; }
 function productDetailHref(product){ return `produto.html?id=${encodeURIComponent(String(product?.id || ""))}`; }
 
@@ -113,9 +119,10 @@ function carouselMarkup(product, index){
   const labels = productLabels(product);
   const detailHref = productDetailHref(product);
   const detailLink = `<a class="product-media-detail-link" href="${escapeHtml(detailHref)}" aria-label="Ver detalhes de ${escapeHtml(product.nome)}"></a>`;
-  const badges = labels.length ? `<div class="product-badges">${labels.map(label=>{
+  const badgeItems = productIsDigital(product) ? [{name:"Receita PDF",behavior:"digital"},...labels] : labels;
+  const badges = badgeItems.length ? `<div class="product-badges">${badgeItems.map(label=>{
     const behaviorClass=label.behavior==="sold_out"?" product-badge--esgotado":label.behavior==="made_to_order"?" product-badge--sob-encomenda":"";
-    return `<span class="product-badge${behaviorClass}">${escapeHtml(label.name)}</span>`;
+    return `<span class="product-badge${behaviorClass}${label.behavior==="digital"?" product-badge--digital":""}">${escapeHtml(label.name)}</span>`;
   }).join("")}</div>` : "";
   if(!images.length) return `<div class="product-media" style="background:${['#e6edf8','#fffddc','#dbe5f5','#ffffff'][index%4]}"><div class="product-placeholder">${sillyCatSvg()}</div>${detailLink}${badges}</div>`;
   const slides = images.map((src,i)=>`<img class="product-carousel-slide${i===0?" active":""}" src="${escapeHtml(src)}" alt="${escapeHtml(product.nome)}${images.length>1?` — foto ${i+1}`:""}" loading="lazy">`).join("");
@@ -158,6 +165,9 @@ function productCard(product, index){
 
 function detailOrderState(product, variant, quantity=1){
   const availability=unitAvailability(product,variant);
+  if(productIsDigital(product)) return availability.canOrder
+    ? {availability,wanted:1,productionUnits:0,tone:"digital",buttonLabel:"Comprar receita PDF",message:"Arquivo PDF liberado para download assim que o pagamento for confirmado."}
+    : {availability,wanted:1,productionUnits:0,tone:"sold-out",buttonLabel:"PDF indisponível",message:"O arquivo desta receita ainda não foi publicado."};
   const wanted=Math.min(MAX_CART_QUANTITY,Math.max(1,Math.floor(Number(quantity||1))));
   if(!availability.canOrder){
     return {availability,wanted,productionUnits:0,tone:"sold-out",buttonLabel:"Esgotado",message:"Este produto está esgotado e não aceita encomendas no momento."};
@@ -183,6 +193,7 @@ function renderProductDetail(){
     return;
   }
 
+  const isDigital=productIsDigital(product);
   const images=productImages(product);
   const variants=productVariants(product);
   const initialVariant=variants.find(variant=>unitAvailability(product,variant).canOrder) || variants[0] || null;
@@ -196,9 +207,10 @@ function renderProductDetail(){
     ? `<img data-detail-main-image src="${escapeHtml(images[0])}" alt="${escapeHtml(product.nome)} — foto 1"><div class="product-detail-placeholder" data-detail-image-fallback hidden>${sillyCatSvg()}</div>`
     : `<div class="product-detail-placeholder">${sillyCatSvg()}</div>`;
   const thumbnails=images.length>1 ? `<div class="product-detail-thumbnails" role="list" aria-label="Fotos de ${escapeHtml(product.nome)}">${images.map((src,index)=>`<button class="product-detail-thumbnail${index===0?" active":""}" type="button" data-detail-thumbnail="${index}" data-image-src="${escapeHtml(src)}" aria-label="Ver foto ${index+1}" aria-pressed="${index===0?"true":"false"}"><img src="${escapeHtml(src)}" alt="" loading="lazy"></button>`).join("")}</div>` : "";
-  const badges=labels.length ? `<div class="product-detail-badges">${labels.map(label=>{
+  const detailBadgeItems=isDigital?[{name:"Receita PDF",behavior:"digital"},...labels]:labels;
+  const badges=detailBadgeItems.length ? `<div class="product-detail-badges">${detailBadgeItems.map(label=>{
     const behaviorClass=label.behavior==="sold_out"?" product-badge--esgotado":label.behavior==="made_to_order"?" product-badge--sob-encomenda":"";
-    return `<span class="product-badge${behaviorClass}">${escapeHtml(label.name)}</span>`;
+    return `<span class="product-badge${behaviorClass}${label.behavior==="digital"?" product-badge--digital":""}">${escapeHtml(label.name)}</span>`;
   }).join("")}</div>` : "";
   const categoryMarkup=categories.length ? `<div class="product-detail-categories" aria-label="Categorias">${categories.map(category=>`<span>${escapeHtml(category.name||category.slug)}</span>`).join("")}</div>` : "";
   const ratingMarkup=`<button class="product-detail-rating${ratingCount?"":" is-empty"}" type="button" data-detail-reviews aria-label="${ratingCount?`Ver ${ratingCount} avaliações de ${product.nome}`:`Ver avaliações de ${product.nome}`}"><span aria-hidden="true">★★★★★</span>${ratingCount?`${ratingAverage.toFixed(1).replace(".",",")} · ${ratingCount} ${ratingCount===1?"avaliação":"avaliações"}`:"Ainda sem avaliações"}</button>`;
@@ -216,7 +228,7 @@ function renderProductDetail(){
         ${thumbnails}
       </div>
       <article class="product-detail-purchase">
-        <p class="product-detail-eyebrow">Feito à mão pela Silly Cat</p>
+        <p class="product-detail-eyebrow">${isDigital?"Receita digital Silly Cat":"Feito à mão pela Silly Cat"}</p>
         <h1 id="productDetailTitle">${escapeHtml(product.nome)}</h1>
         ${ratingMarkup}
         ${categoryMarkup}
@@ -225,20 +237,20 @@ function renderProductDetail(){
         ${variantMarkup}
         <div class="product-detail-availability ${initialState.tone}" data-detail-availability role="status">${escapeHtml(initialState.message)}</div>
         <div class="product-detail-order-row">
-          <div class="product-detail-quantity" aria-label="Quantidade">
+          <div class="product-detail-quantity" aria-label="Quantidade" ${isDigital?"hidden":""}>
             <span>Quantidade</span>
             <div><button type="button" data-detail-quantity-minus aria-label="Diminuir quantidade">−</button><input data-detail-quantity type="number" inputmode="numeric" min="1" value="1" aria-label="Quantidade de ${escapeHtml(product.nome)}"><button type="button" data-detail-quantity-plus aria-label="Aumentar quantidade">+</button></div>
           </div>
           <button class="soft-btn product-detail-buy" type="button" data-detail-add-cart ${initialState.availability.canOrder?"":"disabled aria-disabled=\"true\""}>${escapeHtml(initialState.buttonLabel)}</button>
         </div>
-        <div class="product-detail-shipping"><span aria-hidden="true">📦</span><div><strong>Calcule o frete no carrinho</strong><p>Adicione o produto e informe seu CEP para ver as opções de envio.</p></div></div>
-        <div class="product-detail-assurances"><span>♡ Peça artesanal</span><span>🔒 Pagamento protegido</span><span>↗ Envio para todo o Brasil</span></div>
+        <div class="product-detail-shipping ${isDigital?"digital":""}"><span aria-hidden="true">${isDigital?"↓":"📦"}</span><div><strong>${isDigital?"Download após o pagamento":"Calcule o frete no carrinho"}</strong><p>${isDigital?"O PDF será liberado nesta página e enviado no link pessoal do pedido.":"Adicione o produto e informe seu CEP para ver as opções de envio."}</p></div></div>
+        <div class="product-detail-assurances"><span>${isDigital?"PDF digital":"♡ Peça artesanal"}</span><span>🔒 Pagamento protegido</span><span>${isDigital?"↓ Acesso após confirmação":"↗ Envio para todo o Brasil"}</span></div>
       </article>
     </section>
     <section class="product-detail-info" aria-label="Informações do produto">
-      <article><span class="product-detail-info-icon" aria-hidden="true">✿</span><h2>Detalhes da peça</h2><p>${escapeHtml(product.desc||"Peça artesanal feita com cuidado pela Silly Cat.")}</p></article>
-      <article><span class="product-detail-info-icon" aria-hidden="true">↔</span><h2>Dimensões para envio</h2><p>${dimensions?escapeHtml(dimensions):"As medidas e o peso serão confirmados no preparo do envio."}</p></article>
-      <article><span class="product-detail-info-icon" aria-hidden="true">🧶</span><h2>Produção e prazo</h2><p>${productAllowsBackorder(product)?"Quando a quantidade ultrapassar o estoque, a produção pode levar até 7 dias antes do envio.":"Produto disponível conforme o estoque indicado acima."}</p></article>
+      <article><span class="product-detail-info-icon" aria-hidden="true">✿</span><h2>${isDigital?"Sobre a receita":"Detalhes da peça"}</h2><p>${escapeHtml(product.desc||(isDigital?"Receita de crochê em PDF criada pela Silly Cat.":"Peça artesanal feita com cuidado pela Silly Cat."))}</p></article>
+      <article><span class="product-detail-info-icon" aria-hidden="true">${isDigital?"PDF":"↔"}</span><h2>${isDigital?"Arquivo digital":"Dimensões para envio"}</h2><p>${isDigital?"Produto digital em formato PDF. Nenhum item físico será enviado.":dimensions?escapeHtml(dimensions):"As medidas e o peso serão confirmados no preparo do envio."}</p></article>
+      <article><span class="product-detail-info-icon" aria-hidden="true">${isDigital?"↓":"🧶"}</span><h2>${isDigital?"Como receber":"Produção e prazo"}</h2><p>${isDigital?"Após a confirmação do pagamento, use o botão de download exibido na página do pedido.":productAllowsBackorder(product)?"Quando a quantidade ultrapassar o estoque, a produção pode levar até 7 dias antes do envio.":"Produto disponível conforme o estoque indicado acima."}</p></article>
     </section>`;
 
   document.title=`${product.nome} — Silly Cat Crochê`;
@@ -386,7 +398,7 @@ function sanitizeCart(){
     if(!variants.length) variantId="";
     const variant=variantById(product,variantId), availability=unitAvailability(product,variant);
     if(!availability.canOrder) return [];
-    const max=availability.allowsBackorder?MAX_CART_QUANTITY:Math.min(MAX_CART_QUANTITY,availability.stock);
+    const max=productIsDigital(product)?1:availability.allowsBackorder?MAX_CART_QUANTITY:Math.min(MAX_CART_QUANTITY,availability.stock);
     if(max<1) return [];
     return [{id:item.id,variant_id:variantId,quantity:Math.min(max,Math.max(1,Math.floor(Number(item.quantity||1))))}];
   }); saveCart();
@@ -398,7 +410,7 @@ function addToCart(id, variantId="", quantity=1){
   if(!availability.canOrder){showToast(`${product.nome} está esgotado e não aceita encomendas.`);return;}
   const key=cartLineKey(id,variant?.id||"");
   const existing=CART.find(item=>cartLineKey(item.id,item.variant_id)===key);
-  const max=availability.allowsBackorder?MAX_CART_QUANTITY:Math.min(MAX_CART_QUANTITY,availability.stock);
+  const max=productIsDigital(product)?1:availability.allowsBackorder?MAX_CART_QUANTITY:Math.min(MAX_CART_QUANTITY,availability.stock);
   const requested=Math.min(max,Math.max(1,Math.floor(Number(quantity||1))));
   if(existing) existing.quantity=Math.min(max,existing.quantity+requested);
   else CART.push({id,variant_id:variant?.id||"",quantity:requested});
@@ -406,7 +418,7 @@ function addToCart(id, variantId="", quantity=1){
   showToast(`${product.nome}${variant?` · ${variant.nome}`:""} foi para o carrinho ♡`);
   renderProducts(); renderCart(); openCart();
 }
-function setCartQuantity(key,quantity){ const item=CART.find(entry=>cartLineKey(entry.id,entry.variant_id)===key); if(!item)return; const product=productById(item.id),variant=variantById(product,item.variant_id),availability=unitAvailability(product,variant); if(!availability.canOrder){removeFromCart(key);return;} const max=availability.allowsBackorder?MAX_CART_QUANTITY:Math.min(MAX_CART_QUANTITY,availability.stock); const next=Math.min(max,Math.max(1,Math.floor(Number(quantity||1)))); if(next===item.quantity)return; item.quantity=next; saveCart(); resetShipping(); renderProducts(); renderCart(); }
+function setCartQuantity(key,quantity){ const item=CART.find(entry=>cartLineKey(entry.id,entry.variant_id)===key); if(!item)return; const product=productById(item.id),variant=variantById(product,item.variant_id),availability=unitAvailability(product,variant); if(!availability.canOrder){removeFromCart(key);return;} const max=productIsDigital(product)?1:availability.allowsBackorder?MAX_CART_QUANTITY:Math.min(MAX_CART_QUANTITY,availability.stock); const next=Math.min(max,Math.max(1,Math.floor(Number(quantity||1)))); if(next===item.quantity)return; item.quantity=next; saveCart(); resetShipping(); renderProducts(); renderCart(); }
 function changeCartQuantity(key,delta){ const item=CART.find(entry=>cartLineKey(entry.id,entry.variant_id)===key); if(item)setCartQuantity(key,Number(item.quantity||1)+Number(delta||0)); }
 function removeFromCart(key){ CART=CART.filter(item=>cartLineKey(item.id,item.variant_id)!==key); saveCart(); resetShipping(); renderProducts(); renderCart(); }
 function cartDetailed(){
@@ -414,6 +426,7 @@ function cartDetailed(){
 }
 function cartSubtotal(){ return cartDetailed().reduce((sum,item)=>sum+item.unitPrice*item.quantity,0); }
 function cartPayload(){ return CART.map(item=>({id:item.id,variant_id:item.variant_id||undefined,quantity:Math.max(1,Number(item.quantity||1))})); }
+function cartNeedsShipping(){ return cartDetailed().some(item=>!productIsDigital(item.product)); }
 function localProductionInfo(){
   const items=cartDetailed().map(item=>({id:item.product.id,nome:item.product.nome,variant_id:item.variant?.id||null,variant_name:item.variant?.nome||null,quantity:item.quantity,stock:item.stock,production_quantity:item.availability.allowsBackorder?Math.max(0,item.quantity-item.stock):0})).filter(item=>item.production_quantity>0);
   const units=items.reduce((s,i)=>s+i.production_quantity,0); return {required:units>0,units,production_days:units>0?7:0,dispatch_extra_days:units>0?3:0,items};
@@ -505,8 +518,10 @@ function renderCart(){
   }
   itemsEl.innerHTML=`<div class="cart-item-list">${detailed.map(item=>{
     const {product,variant,quantity,key,unitPrice,stock,availability:orderAvailability}=item;
-    const productionQuantity=orderAvailability.allowsBackorder?Math.max(0,quantity-stock):0, dimensions=formatProductDimensions(product), image=productImages(product)[0]||"";
-    const availability=productionQuantity>0
+    const isDigital=productIsDigital(product), productionQuantity=orderAvailability.allowsBackorder?Math.max(0,quantity-stock):0, dimensions=formatProductDimensions(product), image=productImages(product)[0]||"";
+    const availability=isDigital
+      ? `<small class="cart-item-availability digital">PDF liberado após o pagamento</small>`
+      : productionQuantity>0
       ? `<small class="cart-item-availability warning">${productionQuantity} un. sob encomenda · ${Math.min(stock,quantity)} pronta(s)</small>`
       : `<small class="cart-item-availability">${quantity} un. em pronta entrega</small>`;
     return `<article class="cart-item">
@@ -517,11 +532,11 @@ function renderCart(){
         <span>${formatBRL(unitPrice)} cada</span>
         ${dimensions?`<small class="cart-item-dimensions"><b>Dimensões:</b> ${escapeHtml(dimensions)}</small>`:""}
         ${availability}
-        <div class="cart-quantity" aria-label="Quantidade de ${escapeHtml(product.nome)}">
+        ${isDigital?`<div class="cart-digital-quantity">1 arquivo digital</div>`:`<div class="cart-quantity" aria-label="Quantidade de ${escapeHtml(product.nome)}">
           <button type="button" data-cart-minus="${escapeHtml(key)}" aria-label="Diminuir quantidade">−</button>
           <input type="number" min="1" max="${orderAvailability.allowsBackorder?MAX_CART_QUANTITY:Math.max(1,stock)}" value="${Number(quantity)}" data-cart-quantity="${escapeHtml(key)}" aria-label="Quantidade">
           <button type="button" data-cart-plus="${escapeHtml(key)}" aria-label="Aumentar quantidade">+</button>
-        </div>
+        </div>`}
       </div>
       <button type="button" class="cart-remove" data-remove-cart="${escapeHtml(key)}" aria-label="Remover ${escapeHtml(product.nome)}">×</button>
     </article>`;
@@ -548,6 +563,7 @@ function renderCart(){
 
 function checkoutMarkup(){
   const subtotal = cartSubtotal();
+  const needsShipping = cartNeedsShipping();
   const freight = selectedShipping();
   const discount = Number(COUPON_RESULT?.discount_cents || 0);
   const total = Math.max(0, subtotal - discount) + Number(freight?.preco_centavos || 0);
@@ -576,20 +592,7 @@ function checkoutMarkup(){
         </label>`;
       }).join("")}
     </div>` : "";
-
-  return `<div class="cart-checkout">
-    <div class="cart-summary-row"><span>Subtotal</span><strong>${formatBRL(subtotal)}</strong></div>
-    ${productionNotice}
-
-    <form class="coupon-form" id="couponForm">
-      <label for="couponCode">Cupom de desconto <small>(opcional)</small></label>
-      <div class="coupon-input-row">
-        <input id="couponCode" maxlength="40" autocomplete="off" placeholder="SEU-CUPOM" value="${escapeHtml(COUPON_CODE)}">
-        <button type="submit" class="soft-btn secondary" id="couponApplyButton">Aplicar</button>
-      </div>
-      ${COUPON_RESULT ? `<p class="coupon-message success">Cupom <b>${escapeHtml(COUPON_RESULT.code)}</b> aplicado: −${formatBRL(discount)} <button type="button" id="removeCouponButton">remover</button></p>` : `<p class="coupon-message" id="couponMessage">O desconto será validado com segurança no servidor.</p>`}
-    </form>
-
+  const shippingArea = needsShipping ? `
     <form class="shipping-form" id="shippingForm">
       <label for="checkoutCep">Calcular frete</label>
       <div class="shipping-cep-row">
@@ -598,21 +601,8 @@ function checkoutMarkup(){
       </div>
       <p class="cart-form-note" id="shippingMessage">Informe o CEP para ver as opções do Melhor Envio.</p>
     </form>
-
-    ${quoteList}
-
-    <div class="delivery-data ${freight ? "visible" : ""}">
-      <h3>Dados para entrega</h3>
-      <div class="checkout-field-grid">
-        <label class="full">Nome
-          <input id="checkoutName" autocomplete="name" placeholder="Seu nome" value="${escapeHtml(CHECKOUT_DATA.name)}" required>
-        </label>
-        <label class="full">E-mail
-          <input id="checkoutEmail" type="email" autocomplete="email" placeholder="voce@email.com" value="${escapeHtml(CHECKOUT_DATA.email)}" required>
-        </label>
-        <label>Telefone
-          <input id="checkoutPhone" inputmode="tel" autocomplete="tel" placeholder="(16) 99999-9999" value="${escapeHtml(CHECKOUT_DATA.phone)}" required>
-        </label>
+    ${quoteList}` : `<div class="digital-delivery-notice"><strong>↓ Entrega digital gratuita</strong><p>Não é necessário informar endereço. O PDF será liberado após o pagamento.</p></div>`;
+  const addressFields = needsShipping ? `
         <label>CPF
           <input id="checkoutDocument" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" value="${escapeHtml(CHECKOUT_DATA.document)}" required>
         </label>
@@ -633,21 +623,51 @@ function checkoutMarkup(){
         </label>
         <label>UF
           <input id="checkoutState" autocomplete="address-level1" maxlength="2" placeholder="SP" value="${escapeHtml(CHECKOUT_DATA.state)}" required>
+        </label>` : "";
+  const canPay = !needsShipping || Boolean(freight);
+
+  return `<div class="cart-checkout">
+    <div class="cart-summary-row"><span>Subtotal</span><strong>${formatBRL(subtotal)}</strong></div>
+    ${productionNotice}
+
+    <form class="coupon-form" id="couponForm">
+      <label for="couponCode">Cupom de desconto <small>(opcional)</small></label>
+      <div class="coupon-input-row">
+        <input id="couponCode" maxlength="40" autocomplete="off" placeholder="SEU-CUPOM" value="${escapeHtml(COUPON_CODE)}">
+        <button type="submit" class="soft-btn secondary" id="couponApplyButton">Aplicar</button>
+      </div>
+      ${COUPON_RESULT ? `<p class="coupon-message success">Cupom <b>${escapeHtml(COUPON_RESULT.code)}</b> aplicado: −${formatBRL(discount)} <button type="button" id="removeCouponButton">remover</button></p>` : `<p class="coupon-message" id="couponMessage">O desconto será validado com segurança no servidor.</p>`}
+    </form>
+
+    ${shippingArea}
+
+    <div class="delivery-data ${canPay ? "visible" : ""}">
+      <h3>${needsShipping?"Dados para entrega":"Dados do comprador"}</h3>
+      <div class="checkout-field-grid">
+        <label class="full">Nome
+          <input id="checkoutName" autocomplete="name" placeholder="Seu nome" value="${escapeHtml(CHECKOUT_DATA.name)}" required>
         </label>
+        <label class="full">E-mail
+          <input id="checkoutEmail" type="email" autocomplete="email" placeholder="voce@email.com" value="${escapeHtml(CHECKOUT_DATA.email)}" required>
+        </label>
+        <label>Telefone
+          <input id="checkoutPhone" inputmode="tel" autocomplete="tel" placeholder="(16) 99999-9999" value="${escapeHtml(CHECKOUT_DATA.phone)}" required>
+        </label>
+        ${addressFields}
       </div>
     </div>
 
     <div class="cart-total-box">
       <div><span>Produtos</span><strong>${formatBRL(subtotal)}</strong></div>
       ${discount > 0 ? `<div class="discount-line"><span>Desconto · ${escapeHtml(COUPON_RESULT.code)}</span><strong>−${formatBRL(discount)}</strong></div>` : ""}
-      <div><span>Frete</span><strong>${freight ? formatBRL(freight.preco_centavos) : "—"}</strong></div>
-      <div class="cart-total-line"><span>Total</span><strong>${freight ? formatBRL(total) : formatBRL(subtotal)}</strong></div>
+      <div><span>${needsShipping?"Frete":"Entrega digital"}</span><strong>${needsShipping?(freight ? formatBRL(freight.preco_centavos) : "—"):"Grátis"}</strong></div>
+      <div class="cart-total-line"><span>Total</span><strong>${formatBRL(canPay?total:Math.max(0,subtotal-discount))}</strong></div>
     </div>
 
-    <button class="soft-btn checkout-pay-btn" id="checkoutButton" type="button" ${freight ? "" : "disabled"}>
+    <button class="soft-btn checkout-pay-btn" id="checkoutButton" type="button" ${canPay ? "" : "disabled"}>
       Pagar com InfinitePay
     </button>
-    <p class="checkout-security-note">Pix ou cartão. O valor do frete é recalculado no servidor antes de criar o pagamento.</p>
+    <p class="checkout-security-note">${needsShipping?"Pix ou cartão. O valor do frete é recalculado no servidor antes de criar o pagamento.":"Pix ou cartão. O download só é liberado depois que o pagamento for confirmado."}</p>
   </div>`;
 }
 
@@ -697,6 +717,13 @@ async function apiPost(path, payload){
     body:JSON.stringify(payload)
   });
   const data = await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(data.error || `Erro HTTP ${response.status}`);
+  return data;
+}
+
+async function apiGet(path){
+  const response=await fetch(apiUrl(path),{cache:"no-store"});
+  const data=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(data.error || `Erro HTTP ${response.status}`);
   return data;
 }
@@ -764,8 +791,9 @@ function checkoutField(id){
 }
 
 async function createCheckout(){
+  const needsShipping = cartNeedsShipping();
   const shipping = selectedShipping();
-  if(!shipping){
+  if(needsShipping && !shipping){
     showToast("Escolha uma opção de frete primeiro.");
     return;
   }
@@ -784,8 +812,10 @@ async function createCheckout(){
     state: checkoutField("checkoutState").toUpperCase()
   };
 
-  if(postalCode.length !== 8 || !fields.name || !fields.email || !fields.phone || !fields.document || !fields.street || !fields.neighborhood || !fields.number || !fields.city || fields.state.length !== 2){
-    showToast("Preencha os dados de entrega antes de continuar.");
+  const missingCustomer = !fields.name || !fields.email || !fields.phone;
+  const missingDelivery = needsShipping && (postalCode.length !== 8 || !fields.document || !fields.street || !fields.neighborhood || !fields.number || !fields.city || fields.state.length !== 2);
+  if(missingCustomer || missingDelivery){
+    showToast(needsShipping ? "Preencha os dados de entrega antes de continuar." : "Preencha nome, e-mail e telefone antes de continuar.");
     return;
   }
 
@@ -795,7 +825,7 @@ async function createCheckout(){
   try{
     const data = await apiPost("/api/checkout", {
       postalCode,
-      shippingServiceId: shipping.id,
+      shippingServiceId: shipping?.id,
       items: cartPayload(),
       customer: {name:fields.name, email:fields.email, phone:fields.phone, document:fields.document},
       address: {
@@ -897,12 +927,14 @@ async function initPaymentResult(){
   if(!result) return;
 
   const params = new URLSearchParams(window.location.search);
-  const orderNsu = params.get("order_nsu");
+  let savedOrder=null;
+  try{savedOrder=JSON.parse(sessionStorage.getItem("silly-cat-last-order")||"null");}catch{}
+  const orderNsu = params.get("order_nsu") || savedOrder?.order_nsu || "";
   const transactionNsu = params.get("transaction_nsu");
   const slug = params.get("slug");
   const receiptUrl = params.get("receipt_url");
 
-  if(!orderNsu || !transactionNsu || !slug){
+  if(!orderNsu){
     result.innerHTML = `<div class="payment-state pending">
       <span class="payment-state-icon">♡</span>
       <h2>Pedido recebido</h2>
@@ -915,12 +947,9 @@ async function initPaymentResult(){
   result.innerHTML = `<div class="payment-state pending"><span class="payment-state-icon">…</span><h2>Conferindo pagamento</h2><p>Estamos verificando a confirmação da InfinitePay.</p></div>`;
 
   try{
-    const data = await apiPost("/api/payment-status", {
-      order_nsu:orderNsu,
-      transaction_nsu:transactionNsu,
-      slug,
-      receipt_url: receiptUrl
-    });
+    const data = transactionNsu && slug
+      ? await apiPost("/api/payment-status", {order_nsu:orderNsu,transaction_nsu:transactionNsu,slug,receipt_url:receiptUrl})
+      : await apiGet(`/api/orders/${encodeURIComponent(orderNsu)}/status`);
     if(data.paid){
       CART = [];
       saveCart();
@@ -929,12 +958,15 @@ async function initPaymentResult(){
       const productionMessage = data.requires_production
         ? `<div class="payment-production-note"><b>🧶 Pedido com encomenda</b><br>${Number(data.production_units || 0)} ${Number(data.production_units || 0) === 1 ? "item será produzido" : "itens serão produzidos"} antes do envio. A produção pode levar até ${Number(data.production_days || 7)} dias; depois, tudo será enviado junto.</div>`
         : "";
+      const downloads=Array.isArray(data.downloads)?data.downloads:[];
+      const downloadMarkup=downloads.length?`<div class="digital-downloads"><h3>Suas receitas estão prontas</h3><p>Baixe e guarde os arquivos no seu dispositivo.</p>${downloads.map((item,index)=>`<a class="soft-btn digital-download-button" href="${escapeHtml(item.url)}">↓ Baixar ${escapeHtml(item.product_name||item.file_name||`receita ${index+1}`)}</a>`).join("")}<small>Os links são pessoais e ficam vinculados a este pedido.</small></div>`:"";
       result.innerHTML = `<div class="payment-state success">
         <span class="payment-state-icon">✓</span>
         <h2>Pagamento confirmado!</h2>
-        <p>Pedido <b>${escapeHtml(orderNsu)}</b>. Obrigada por comprar uma peça da Silly Cat ♡</p>
+        <p>Pedido <b>${escapeHtml(orderNsu)}</b>. Obrigada por comprar na Silly Cat ♡</p>
         <p>Valor confirmado: <b>${formatBRL(data.amount)}</b></p>
         ${productionMessage}
+        ${downloadMarkup}
         <div class="payment-state-actions">${receipt}<a class="soft-btn" href="produtos.html">Continuar navegando</a></div>
       </div>`;
     }else{

@@ -4,6 +4,7 @@
   const TOKEN_KEY = "sillycat_admin_session";
   let PRODUCTS = [];
   let IMAGE_UPLOAD_ENABLED = false;
+  let DIGITAL_UPLOAD_ENABLED = false;
   let FULFILLMENT_ORDERS = [];
   let FULFILLMENT_SUMMARY = {};
   let COUPONS = [];
@@ -112,6 +113,7 @@
     const { data } = await api("/api/admin/products?include_archived=1");
     PRODUCTS = data.products || [];
     IMAGE_UPLOAD_ENABLED = Boolean(data.image_upload_enabled);
+    DIGITAL_UPLOAD_ENABLED = Boolean(data.digital_upload_enabled);
     renderSummary(data.summary || {});
     renderProducts();
     syncReviewProductOptions();
@@ -734,6 +736,9 @@
 
   function statusBadge(product) {
     if (!product.active) return `<span class="badge archived">ARQUIVADO</span>`;
+    if (product.sale_type === "digital") return product.digital_file_ready
+      ? `<span class="badge digital">RECEITA PDF</span>`
+      : `<span class="badge soldout">PDF PENDENTE</span>`;
     if (product.availability?.status === "sold_out") return `<span class="badge soldout">ESGOTADO</span>`;
     if (product.availability?.status === "made_to_order") return `<span class="badge provisional">SOB ENCOMENDA</span>`;
     return `<span class="badge available">DISPONÍVEL</span>`;
@@ -744,13 +749,16 @@
     const items = filteredProducts();
     $("emptyState").hidden = items.length > 0;
     list.innerHTML = items.map((product) => {
-      const provisional = product.frete?.provisorio ? `<span class="badge provisional">MEDIDAS PROVISÓRIAS</span>` : "";
+      const isDigital = product.sale_type === "digital";
+      const provisional = !isDigital && product.frete?.provisorio ? `<span class="badge provisional">MEDIDAS PROVISÓRIAS</span>` : "";
       const image = product.img ? `<img class="product-thumb" src="${escapeHtml(product.img)}" alt="">` : `<div class="product-thumb thumb-placeholder">sem imagem</div>`;
       const variants = Array.isArray(product.variacoes) ? product.variacoes : [];
       const variantInfo = variants.length ? `<div class="product-variant-summary">${variants.length} variação(ões) · estoque total ${Number(product.estoque || 0)}</div>` : "";
       const categories = (product.categorias || [{ name: product.categoria_label || product.categoria || "Outros" }]).map((category) => `<span class="badge category">${escapeHtml(category.name)}</span>`).join("");
       const labels = (product.etiquetas || []).map((label) => `<span class="badge taxonomy-label">${escapeHtml(label.name)}</span>`).join("");
-      const stockControl = variants.length
+      const stockControl = isDigital
+        ? `<div class="stock-control variant-stock-readonly"><span>PDF</span><small>sem estoque</small></div>`
+        : variants.length
         ? `<div class="stock-control variant-stock-readonly"><span>${Number(product.estoque || 0)}</span><small>pelas variações</small></div>`
         : `<div class="stock-control" aria-label="Estoque de ${escapeHtml(product.nome)}"><button type="button" data-stock-minus="${escapeHtml(product.id)}">−</button><input type="number" min="0" max="9999" value="${Number(product.estoque || 0)}" data-stock-input="${escapeHtml(product.id)}" aria-label="Quantidade em estoque"><button type="button" data-stock-plus="${escapeHtml(product.id)}">+</button></div>`;
       return `<article class="product-row" data-id="${escapeHtml(product.id)}">
@@ -758,8 +766,8 @@
         <div class="product-main"><h3>${escapeHtml(product.nome)}</h3><div class="product-id">${escapeHtml(product.id)}</div>${statusBadge(product)}${provisional}<div class="product-taxonomy-badges">${categories}${labels}</div>${variantInfo}</div>
         <div class="product-price">${money(product.preco_centavos)}</div>
         ${stockControl}
-        <div class="product-shipping">${Number(product.frete?.largura)} × ${Number(product.frete?.altura)} × ${Number(product.frete?.comprimento)} cm<br>${Number(product.frete?.peso)} kg</div>
-        <div class="row-actions">${variants.length ? "" : `<button class="mini-btn primary" type="button" data-save-stock="${escapeHtml(product.id)}">Salvar estoque</button>`}<button class="mini-btn" type="button" data-edit="${escapeHtml(product.id)}">Editar</button>${product.active ? "" : `<button class="mini-btn" type="button" data-restore="${escapeHtml(product.id)}">Restaurar</button>`}</div>
+        <div class="product-shipping">${isDigital ? `Entrega digital<br>${escapeHtml(product.digital_file_name || "PDF pendente")}` : `${Number(product.frete?.largura)} × ${Number(product.frete?.altura)} × ${Number(product.frete?.comprimento)} cm<br>${Number(product.frete?.peso)} kg`}</div>
+        <div class="row-actions">${isDigital || variants.length ? "" : `<button class="mini-btn primary" type="button" data-save-stock="${escapeHtml(product.id)}">Salvar estoque</button>`}<button class="mini-btn" type="button" data-edit="${escapeHtml(product.id)}">Editar</button>${product.active ? "" : `<button class="mini-btn" type="button" data-restore="${escapeHtml(product.id)}">Restaurar</button>`}</div>
       </article>`;
     }).join("");
     list.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => openEditor(btn.dataset.edit)));
@@ -798,10 +806,30 @@
   }
 
   function syncVariantStockMode() {
+    const isDigital = $("productSaleType").value === "digital";
     const has = $("variantRows").children.length > 0;
     $("variantEmptyHelp").hidden = has;
-    $("productStock").disabled = has;
-    if (has) $("productStock").title = "O estoque é definido individualmente nas variações."; else $("productStock").title = "";
+    $("productStock").disabled = has || isDigital;
+    $("variantRows").querySelectorAll("input").forEach((input) => { input.disabled = isDigital; });
+    $("addVariantButton").disabled = isDigital;
+    if (isDigital) $("productStock").title = "Receitas digitais não utilizam estoque.";
+    else if (has) $("productStock").title = "O estoque é definido individualmente nas variações.";
+    else $("productStock").title = "";
+  }
+
+  function syncSaleTypeFields({ autoCategory = false } = {}) {
+    const isDigital = $("productSaleType").value === "digital";
+    $("physicalProductFields").hidden = isDigital;
+    $("digitalProductFields").hidden = !isDigital;
+    $("productStockField").hidden = isDigital;
+    $("variantEditor").hidden = isDigital;
+    ["productWidth", "productHeight", "productLength", "productWeight", "productProvisional"].forEach((id) => { $(id).disabled = isDigital; });
+    $("productDigitalFile").disabled = !isDigital || !DIGITAL_UPLOAD_ENABLED;
+    if (isDigital && autoCategory) {
+      const category = document.querySelector('#productCategories input[value="receitas-de-croche"]');
+      if (category) category.checked = true;
+    }
+    syncVariantStockMode();
   }
 
   function collectVariants() {
@@ -946,6 +974,7 @@
     $("dialogTitle").textContent = product ? product.nome : "Cadastrar produto";
     $("productId").value = product?.id || ""; $("productId").readOnly = Boolean(product);
     $("productName").value = product?.nome || ""; $("productDescription").value = product?.desc || "";
+    $("productSaleType").value = product?.sale_type === "digital" ? "digital" : "physical";
     $("productPrice").value = product ? (Number(product.preco_centavos) / 100).toFixed(2) : "";
     $("productStock").value = product?.estoque ?? 1;
     syncProductTaxonomyChoices(
@@ -962,7 +991,10 @@
     IMAGE_ITEMS = refs.map((ref, index) => ({ key: imageItemKey(), kind: "existing", ref, previewUrl: resolvedImages[index] || ref }));
     $("productImageRefs").value = ""; $("productImageFile").value = ""; $("productImageFile").disabled = !IMAGE_UPLOAD_ENABLED;
     $("imageUploadHelp").textContent = IMAGE_UPLOAD_ENABLED ? "JPG, PNG, WebP ou GIF, até 6 MB por imagem. Máximo de 20 imagens no total." : "Configure o R2 para enviar arquivos diretamente pelo painel.";
-    $("variantRows").innerHTML = ""; (product?.variacoes || []).forEach(addVariantRow); syncVariantStockMode();
+    $("productDigitalFile").value = "";
+    $("digitalFileHelp").textContent = DIGITAL_UPLOAD_ENABLED ? "PDF de até 25 MB." : "Configure o R2 PRODUCT_IMAGES para enviar o PDF.";
+    $("digitalFileStatus").textContent = product?.digital_file_ready ? `PDF atual: ${product.digital_file_name || "arquivo protegido"}` : "Nenhum PDF enviado.";
+    $("variantRows").innerHTML = ""; (product?.variacoes || []).forEach(addVariantRow); syncSaleTypeFields();
     $("dangerZone").style.visibility = product ? "visible" : "hidden"; $("archiveProductButton").textContent = product?.active === false ? "Produto arquivado" : "Arquivar produto"; $("archiveProductButton").disabled = product?.active === false; $("historyButton").disabled = !product;
     setProductMessage(""); renderImageManager(); $("productDialog").showModal();
   }
@@ -970,17 +1002,18 @@
   function setProductMessage(message, ok = false) { const el = $("productMessage"); el.textContent = message || ""; el.style.color = ok ? "#2d6a4f" : ""; }
 
   function productPayload() {
-    const variants=collectVariants();
+    const saleType = $("productSaleType").value === "digital" ? "digital" : "physical";
+    const variants=saleType === "digital" ? [] : collectVariants();
     const categories = selectedTaxonomySlugs("productCategories");
     const labels = selectedTaxonomySlugs("productLabels");
     if (!categories.length) throw new Error("Selecione pelo menos uma categoria.");
     const payload = {
-      id: $("productId").value.trim(), name: $("productName").value.trim(), description: $("productDescription").value.trim(), price_cents: Math.round(Number($("productPrice").value || 0) * 100),
+      id: $("productId").value.trim(), name: $("productName").value.trim(), description: $("productDescription").value.trim(), price_cents: Math.round(Number($("productPrice").value || 0) * 100), sale_type: saleType,
       categories, labels, sort_order: Math.trunc(Number($("productSortOrder").value || 0)), active: $("productActive").checked,
-      width_cm: Number($("productWidth").value), height_cm: Number($("productHeight").value), length_cm: Number($("productLength").value), weight_kg: Number($("productWeight").value), shipping_provisional: $("productProvisional").checked,
+      width_cm: saleType === "digital" ? 1 : Number($("productWidth").value), height_cm: saleType === "digital" ? 1 : Number($("productHeight").value), length_cm: saleType === "digital" ? 1 : Number($("productLength").value), weight_kg: saleType === "digital" ? 0.01 : Number($("productWeight").value), shipping_provisional: saleType === "physical" && $("productProvisional").checked,
       image_refs: existingImageRefs(), variants, stock_reason: editingId ? "Edição do produto pelo painel" : "Cadastro inicial",
     };
-    if(!variants.length) payload.stock=Math.max(0,Math.floor(Number($("productStock").value||0)));
+    if(!variants.length) payload.stock=saleType === "digital" ? 1 : Math.max(0,Math.floor(Number($("productStock").value||0)));
     return payload;
   }
 
@@ -989,6 +1022,11 @@
     try {
       const desiredItems=[...IMAGE_ITEMS];
       const payload=productPayload(); const path=editingId?`/api/admin/products/${encodeURIComponent(editingId)}`:"/api/admin/products"; const method=editingId?"PUT":"POST";
+      const digitalFile=$("productDigitalFile").files?.[0] || null;
+      const existingProduct=editingId ? PRODUCTS.find((product)=>product.id===editingId) : null;
+      if(payload.sale_type==="digital" && !digitalFile && !existingProduct?.digital_file_ready) throw new Error("Selecione o PDF da receita antes de salvar.");
+      if(digitalFile && ((digitalFile.type && digitalFile.type!=="application/pdf") || !digitalFile.name.toLowerCase().endsWith(".pdf"))) throw new Error("Envie a receita em um arquivo PDF válido.");
+      if(digitalFile?.size > 25*1024*1024) throw new Error("O PDF deve ter no máximo 25 MB.");
       let {data}=await api(path,{method,body:JSON.stringify(payload)}); const id=data.id;
       editingId=id; $("productId").readOnly=true;
       const pendingItems=desiredItems.filter((item)=>item.kind==="file");
@@ -1011,6 +1049,11 @@
         const finalRefs=desiredItems.map((item)=>item.ref).filter(Boolean);
         const finalResult=await api(`/api/admin/products/${encodeURIComponent(id)}`,{method:"PUT",body:JSON.stringify({image_refs:finalRefs})});
         data=finalResult.data;
+      }
+      if(payload.sale_type==="digital" && digitalFile){
+        setProductMessage("Produto salvo. Enviando PDF protegido…",true);
+        const result=await api(`/api/admin/products/${encodeURIComponent(id)}/digital-file`,{method:"POST",headers:{"Content-Type":"application/pdf","X-File-Name":encodeURIComponent(digitalFile.name)},body:await digitalFile.arrayBuffer()});
+        data=result.data;
       }
       $("productDialog").close(); await Promise.all([loadProducts(), loadCategories(), loadLabels()]); setStatus(`${data.nome || payload.name} salvo com sucesso.`);
     } catch(error){ setProductMessage(error.message || "Não foi possível salvar."); }
@@ -1090,6 +1133,7 @@
   $("searchInput").addEventListener("input", renderProducts);
   $("statusFilter").addEventListener("change", renderProducts);
   $("productForm").addEventListener("submit", saveProduct);
+  $("productSaleType").addEventListener("change", () => syncSaleTypeFields({ autoCategory: true }));
   $("closeProductDialog").addEventListener("click", () => $("productDialog").close());
   $("cancelProductButton").addEventListener("click", () => $("productDialog").close());
   $("archiveProductButton").addEventListener("click", archiveProduct);
@@ -1136,6 +1180,22 @@
   $("productImageFile").addEventListener("change", () => {
     const files = [...($("productImageFile").files || [])];
     addPendingImageFiles(files);
+  });
+  $("productDigitalFile").addEventListener("change", () => {
+    const file = $("productDigitalFile").files?.[0];
+    if (!file) return;
+    if ((file.type && file.type !== "application/pdf") || !file.name.toLowerCase().endsWith(".pdf")) {
+      $("productDigitalFile").value = "";
+      setProductMessage("Escolha um arquivo PDF válido.");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      $("productDigitalFile").value = "";
+      setProductMessage("O PDF deve ter no máximo 25 MB.");
+      return;
+    }
+    $("digitalFileStatus").textContent = `Novo PDF selecionado: ${file.name}`;
+    setProductMessage("");
   });
   $("productDialog").addEventListener("close", releasePendingImageUrls);
   $("productName").addEventListener("input", () => {
