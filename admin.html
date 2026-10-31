@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>Administração · Silly Cat</title>
-  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="admin.css?v=3.3">
 </head>
 <body>
   <main class="admin-shell">
@@ -302,7 +302,7 @@
           </div>
 
           <h3 class="image-heading">Imagens</h3>
-          <p class="field-help">Arraste as imagens ou use as setas para mudar a ordem. A primeira será a capa; remova com a lixeira. As alterações são aplicadas ao salvar o produto.</p>
+          <p class="field-help">Arraste as imagens ou use as setas para mudar a ordem. A primeira será a capa. Nas imagens novas, use <strong>Ajustar enquadramento</strong> para ampliar e posicionar a foto antes de salvar.</p>
           <div class="image-editor multi-image-editor">
             <div class="image-preview image-gallery-preview" id="imagePreview" aria-live="polite"><span>Sem imagem</span></div>
             <div class="image-controls">
@@ -312,7 +312,7 @@
               <button class="ghost-btn image-add-button" type="button" id="addImageRefsButton">Adicionar à galeria</button>
               <label>Enviar novas imagens
                 <input id="productImageFile" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif">
-                <small id="imageUploadHelp">JPG, PNG, WebP ou GIF, até 6 MB por imagem. Máximo de 20 imagens no total.</small>
+                <small id="imageUploadHelp">JPG, PNG, WebP ou GIF. Fotos de até 20 MB podem ser ajustadas; o arquivo final terá até 6 MB. Máximo de 20 imagens.</small>
               </label>
             </div>
           </div>
@@ -331,6 +331,44 @@
       </div>
       <p class="form-message" id="productMessage" aria-live="polite"></p>
     </form>
+  </dialog>
+
+  <dialog id="imageCropDialog" class="admin-dialog image-crop-dialog">
+    <div class="dialog-card image-crop-card">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">Prévia da loja</p>
+          <h2>Ajustar enquadramento</h2>
+        </div>
+        <button class="dialog-close" type="button" id="closeImageCropDialog" aria-label="Fechar">×</button>
+      </div>
+      <p class="image-crop-help">Arraste a foto para posicioná-la dentro do quadrado. Use o controle de zoom para aproximar ou afastar.</p>
+      <div class="image-crop-workspace">
+        <div class="image-crop-stage">
+          <canvas id="imageCropCanvas" width="800" height="800" aria-label="Prévia do enquadramento quadrado da imagem"></canvas>
+          <span>O quadrado mostra exatamente como a imagem será salva.</span>
+        </div>
+        <div class="image-crop-controls">
+          <label for="imageCropZoom">Zoom
+            <input id="imageCropZoom" type="range" min="1" max="3" step="0.01" value="1">
+          </label>
+          <output id="imageCropZoomValue" for="imageCropZoom">100%</output>
+          <button class="ghost-btn" type="button" id="resetImageCrop">Centralizar novamente</button>
+          <div class="image-crop-note">
+            <strong>Formato final</strong>
+            <span>Quadrado · 1200 × 1200 px · WebP</span>
+          </div>
+        </div>
+      </div>
+      <p class="form-message" id="imageCropMessage" aria-live="polite"></p>
+      <div class="dialog-actions image-crop-actions">
+        <div></div>
+        <div class="save-actions">
+          <button class="ghost-btn" type="button" id="cancelImageCrop">Cancelar</button>
+          <button class="primary-btn" type="button" id="applyImageCrop">Aplicar enquadramento</button>
+        </div>
+      </div>
+    </div>
   </dialog>
 
   <dialog id="categoryDialog" class="admin-dialog small-dialog">
@@ -410,6 +448,6 @@
   </dialog>
 
   <script src="ecommerce-config.js"></script>
-  <script src="admin.js"></script>
+  <script src="admin.js?v=3.3"></script>
 </body>
 </html>

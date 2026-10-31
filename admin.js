@@ -20,6 +20,8 @@
   let selectLabelAfterSave = false;
   let IMAGE_ITEMS = [];
   let draggingImageKey = null;
+  let IMAGE_CROP_STATE = null;
+  let imageCropPointer = null;
 
   const $ = (id) => document.getElementById(id);
   const apiBaseUrl = () => String(window.SILLY_CAT_ECOMMERCE?.apiBaseUrl || "").replace(/\/$/, "");
@@ -878,6 +880,141 @@
     renderImageManager();
   }
 
+  function imageCanBeAdjusted(item) {
+    return item?.kind === "file" && item.file?.type !== "image/gif";
+  }
+
+  function setImageCropMessage(message) {
+    $("imageCropMessage").textContent = message || "";
+  }
+
+  function cleanupImageCropState() {
+    if (IMAGE_CROP_STATE?.sourceUrl?.startsWith("blob:")) URL.revokeObjectURL(IMAGE_CROP_STATE.sourceUrl);
+    IMAGE_CROP_STATE = null;
+    imageCropPointer = null;
+    $("imageCropCanvas").classList.remove("dragging");
+    $("applyImageCrop").disabled = false;
+  }
+
+  function imageCropGeometry() {
+    if (!IMAGE_CROP_STATE) return null;
+    const canvas = $("imageCropCanvas");
+    const image = IMAGE_CROP_STATE.image;
+    const baseScale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+    const scale = baseScale * IMAGE_CROP_STATE.zoom;
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const maxOffsetX = Math.max(0, (width - canvas.width) / 2);
+    const maxOffsetY = Math.max(0, (height - canvas.height) / 2);
+    IMAGE_CROP_STATE.offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, IMAGE_CROP_STATE.offsetX));
+    IMAGE_CROP_STATE.offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, IMAGE_CROP_STATE.offsetY));
+    return {
+      scale,
+      x: (canvas.width - width) / 2 + IMAGE_CROP_STATE.offsetX,
+      y: (canvas.height - height) / 2 + IMAGE_CROP_STATE.offsetY,
+      width,
+      height,
+    };
+  }
+
+  function drawImageCrop() {
+    const canvas = $("imageCropCanvas");
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#eee9df";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const geometry = imageCropGeometry();
+    if (!geometry || !IMAGE_CROP_STATE?.image) return;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(IMAGE_CROP_STATE.image, geometry.x, geometry.y, geometry.width, geometry.height);
+    $("imageCropZoomValue").textContent = `${Math.round(IMAGE_CROP_STATE.zoom * 100)}%`;
+  }
+
+  async function openImageCropEditor(key) {
+    const item = IMAGE_ITEMS.find((candidate) => candidate.key === key);
+    if (!item || item.kind !== "file") return;
+    if (!imageCanBeAdjusted(item)) {
+      setProductMessage("GIF animado é mantido no formato original e não pode ser reenquadrado.");
+      return;
+    }
+    cleanupImageCropState();
+    setImageCropMessage("");
+    const sourceFile = item.sourceFile || item.file;
+    const sourceUrl = URL.createObjectURL(sourceFile);
+    const image = new Image();
+    try {
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error("Não foi possível abrir essa imagem."));
+        image.src = sourceUrl;
+      });
+      IMAGE_CROP_STATE = { key, image, sourceUrl, zoom: 1, offsetX: 0, offsetY: 0 };
+      $("imageCropZoom").value = "1";
+      drawImageCrop();
+      $("imageCropDialog").showModal();
+    } catch (error) {
+      URL.revokeObjectURL(sourceUrl);
+      setProductMessage(error.message || "Não foi possível ajustar essa imagem.");
+    }
+  }
+
+  function resetImageCrop() {
+    if (!IMAGE_CROP_STATE) return;
+    IMAGE_CROP_STATE.zoom = 1;
+    IMAGE_CROP_STATE.offsetX = 0;
+    IMAGE_CROP_STATE.offsetY = 0;
+    $("imageCropZoom").value = "1";
+    drawImageCrop();
+  }
+
+  function canvasBlob(canvas, type, quality) {
+    return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+  }
+
+  async function applyImageCrop() {
+    if (!IMAGE_CROP_STATE) return;
+    const button = $("applyImageCrop");
+    button.disabled = true;
+    setImageCropMessage("Preparando a imagem…");
+    try {
+      const previewCanvas = $("imageCropCanvas");
+      const geometry = imageCropGeometry();
+      const item = IMAGE_ITEMS.find((candidate) => candidate.key === IMAGE_CROP_STATE.key);
+      if (!geometry || !item) throw new Error("A imagem não está mais disponível.");
+      const sourceX = Math.max(0, -geometry.x / geometry.scale);
+      const sourceY = Math.max(0, -geometry.y / geometry.scale);
+      const sourceWidth = previewCanvas.width / geometry.scale;
+      const sourceHeight = previewCanvas.height / geometry.scale;
+      const output = document.createElement("canvas");
+      output.width = 1200;
+      output.height = 1200;
+      const context = output.getContext("2d");
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(IMAGE_CROP_STATE.image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, output.width, output.height);
+      let blob = await canvasBlob(output, "image/webp", 0.9);
+      if (!blob) blob = await canvasBlob(output, "image/jpeg", 0.9);
+      if (!blob) throw new Error("Seu navegador não conseguiu gerar a imagem ajustada.");
+      if (blob.size > 6 * 1024 * 1024) blob = await canvasBlob(output, "image/webp", 0.75);
+      if (!blob || blob.size > 6 * 1024 * 1024) throw new Error("A imagem ajustada ainda ficou maior que 6 MB. Tente usar outra foto.");
+      const extension = blob.type === "image/webp" ? "webp" : "jpg";
+      const baseName = String((item.sourceFile || item.file).name || "produto").replace(/\.[^.]+$/, "");
+      const adjustedFile = new File([blob], `${baseName}-enquadrada.${extension}`, { type: blob.type, lastModified: Date.now() });
+      if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl);
+      item.file = adjustedFile;
+      item.previewUrl = URL.createObjectURL(adjustedFile);
+      item.adjusted = true;
+      item.requiresAdjustment = false;
+      renderImageManager();
+      setProductMessage("Enquadramento aplicado. Salve o produto para enviar a imagem.", true);
+      $("imageCropDialog").close();
+    } catch (error) {
+      setImageCropMessage(error.message || "Não foi possível aplicar o enquadramento.");
+      button.disabled = false;
+    }
+  }
+
   function renderImageManager() {
     const preview = $("imagePreview");
     if (!IMAGE_ITEMS.length) {
@@ -889,10 +1026,11 @@
         <div class="admin-image-frame">
           <img src="${escapeHtml(item.previewUrl || item.ref)}" alt="Imagem ${index + 1} do produto">
           <span class="image-position-badge">${index === 0 ? "CAPA" : index + 1}</span>
-          ${item.kind === "file" ? '<span class="image-pending-badge">NOVA</span>' : ""}
+          ${item.kind === "file" ? `<span class="image-pending-badge ${item.adjusted ? "adjusted" : item.requiresAdjustment ? "required" : ""}">${item.adjusted ? "AJUSTADA" : item.requiresAdjustment ? "AJUSTAR" : "NOVA"}</span>` : ""}
           <span class="image-drag-handle" aria-hidden="true">⠿</span>
         </div>
-        <div class="image-tile-actions">
+        <div class="image-tile-actions ${item.kind === "file" ? "has-adjust" : ""}">
+          ${item.kind === "file" ? `<button type="button" class="image-tile-button adjust" data-image-adjust ${imageCanBeAdjusted(item) ? "" : 'disabled title="GIF animado não pode ser reenquadrado"'}>⤢ Ajustar enquadramento</button>` : ""}
           <button type="button" class="image-tile-button" data-image-move="-1" aria-label="Mover imagem para a esquerda" title="Mover para a esquerda" ${index === 0 ? "disabled" : ""}>←</button>
           <button type="button" class="image-tile-button" data-image-move="1" aria-label="Mover imagem para a direita" title="Mover para a direita" ${index === IMAGE_ITEMS.length - 1 ? "disabled" : ""}>→</button>
           <button type="button" class="image-tile-button remove" data-image-remove aria-label="Remover imagem" title="Remover imagem">✕</button>
@@ -901,6 +1039,7 @@
 
     preview.querySelectorAll(".admin-image-tile").forEach((tile) => {
       const key = tile.dataset.imageKey;
+      tile.querySelector("[data-image-adjust]")?.addEventListener("click", () => openImageCropEditor(key));
       tile.querySelectorAll("[data-image-move]").forEach((button) => button.addEventListener("click", () => moveImageItem(key, Number(button.dataset.imageMove))));
       tile.querySelector("[data-image-remove]").addEventListener("click", () => removeImageItem(key));
       tile.addEventListener("dragstart", (event) => {
@@ -956,15 +1095,35 @@
       setProductMessage("Cada produto pode ter no máximo 20 imagens.");
       return;
     }
+    let firstAdjustableKey = null;
     for (const file of files) {
-      if (file.size > 6 * 1024 * 1024) {
-        setProductMessage(`A imagem “${file.name}” ultrapassa 6 MB.`);
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+        setProductMessage(`O arquivo “${file.name}” não é uma imagem JPG, PNG, WebP ou GIF.`);
         continue;
       }
-      IMAGE_ITEMS.push({ key: imageItemKey(), kind: "file", file, previewUrl: URL.createObjectURL(file) });
+      if (file.size > 20 * 1024 * 1024) {
+        setProductMessage(`A imagem “${file.name}” ultrapassa 20 MB.`);
+        continue;
+      }
+      if (file.type === "image/gif" && file.size > 6 * 1024 * 1024) {
+        setProductMessage(`O GIF “${file.name}” ultrapassa 6 MB e não pode ser redimensionado sem perder a animação.`);
+        continue;
+      }
+      const item = {
+        key: imageItemKey(),
+        kind: "file",
+        file,
+        sourceFile: file,
+        previewUrl: URL.createObjectURL(file),
+        adjusted: false,
+        requiresAdjustment: file.size > 6 * 1024 * 1024,
+      };
+      IMAGE_ITEMS.push(item);
+      if (!firstAdjustableKey && imageCanBeAdjusted(item)) firstAdjustableKey = item.key;
     }
     $("productImageFile").value = "";
     renderImageManager();
+    if (firstAdjustableKey) openImageCropEditor(firstAdjustableKey);
   }
 
   function openEditor(id = null) {
@@ -990,7 +1149,7 @@
     const resolvedImages = Array.isArray(product?.images) ? product.images : (product?.img ? [product.img] : []);
     IMAGE_ITEMS = refs.map((ref, index) => ({ key: imageItemKey(), kind: "existing", ref, previewUrl: resolvedImages[index] || ref }));
     $("productImageRefs").value = ""; $("productImageFile").value = ""; $("productImageFile").disabled = !IMAGE_UPLOAD_ENABLED;
-    $("imageUploadHelp").textContent = IMAGE_UPLOAD_ENABLED ? "JPG, PNG, WebP ou GIF, até 6 MB por imagem. Máximo de 20 imagens no total." : "Configure o R2 para enviar arquivos diretamente pelo painel.";
+    $("imageUploadHelp").textContent = IMAGE_UPLOAD_ENABLED ? "JPG, PNG, WebP ou GIF. Fotos de até 20 MB podem ser ajustadas; o arquivo final terá até 6 MB. Máximo de 20 imagens." : "Configure o R2 para enviar arquivos diretamente pelo painel.";
     $("productDigitalFile").value = "";
     $("digitalFileHelp").textContent = DIGITAL_UPLOAD_ENABLED ? "PDF de até 25 MB." : "Configure o R2 PRODUCT_IMAGES para enviar o PDF.";
     $("digitalFileStatus").textContent = product?.digital_file_ready ? `PDF atual: ${product.digital_file_name || "arquivo protegido"}` : "Nenhum PDF enviado.";
@@ -1032,6 +1191,8 @@
       const pendingItems=desiredItems.filter((item)=>item.kind==="file");
       const knownRefs=new Set(existingImageRefs());
       if(pendingItems.length && !IMAGE_UPLOAD_ENABLED) throw new Error("O R2 ainda não está configurado para upload de imagens.");
+      const oversizedImage=pendingItems.find((item)=>item.file.size > 6*1024*1024);
+      if(oversizedImage) throw new Error(`A imagem “${oversizedImage.file.name}” precisa ser ajustada antes de salvar.`);
       for(let i=0;i<pendingItems.length;i++){
         const item=pendingItems[i]; setProductMessage(`Produto salvo. Enviando imagem ${i+1}/${pendingItems.length}…`,true);
         const result=await api(`/api/admin/products/${encodeURIComponent(id)}/images`,{method:"POST",headers:{"Content-Type":item.file.type},body:await item.file.arrayBuffer()});
@@ -1041,7 +1202,7 @@
         if(!newRef) throw new Error("A imagem foi enviada, mas o backend não devolveu sua referência.");
         const resolvedIndex=returnedRefs.indexOf(newRef);
         if(item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl);
-        item.kind="existing"; item.ref=newRef; item.previewUrl=(Array.isArray(data.images)?data.images[resolvedIndex]:"") || newRef; delete item.file;
+        item.kind="existing"; item.ref=newRef; item.previewUrl=(Array.isArray(data.images)?data.images[resolvedIndex]:"") || newRef; delete item.file; delete item.sourceFile; delete item.adjusted; delete item.requiresAdjustment;
         knownRefs.add(newRef);
       }
       IMAGE_ITEMS=desiredItems;
@@ -1180,6 +1341,45 @@
   $("productImageFile").addEventListener("change", () => {
     const files = [...($("productImageFile").files || [])];
     addPendingImageFiles(files);
+  });
+  $("imageCropZoom").addEventListener("input", () => {
+    if (!IMAGE_CROP_STATE) return;
+    IMAGE_CROP_STATE.zoom = Number($("imageCropZoom").value || 1);
+    drawImageCrop();
+  });
+  $("resetImageCrop").addEventListener("click", resetImageCrop);
+  $("applyImageCrop").addEventListener("click", applyImageCrop);
+  $("closeImageCropDialog").addEventListener("click", () => $("imageCropDialog").close());
+  $("cancelImageCrop").addEventListener("click", () => $("imageCropDialog").close());
+  $("imageCropDialog").addEventListener("close", cleanupImageCropState);
+  $("imageCropCanvas").addEventListener("pointerdown", (event) => {
+    if (!IMAGE_CROP_STATE) return;
+    event.preventDefault();
+    imageCropPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    $("imageCropCanvas").setPointerCapture(event.pointerId);
+    $("imageCropCanvas").classList.add("dragging");
+  });
+  $("imageCropCanvas").addEventListener("pointermove", (event) => {
+    if (!IMAGE_CROP_STATE || !imageCropPointer || imageCropPointer.id !== event.pointerId) return;
+    event.preventDefault();
+    const rect = $("imageCropCanvas").getBoundingClientRect();
+    const ratio = $("imageCropCanvas").width / rect.width;
+    IMAGE_CROP_STATE.offsetX += (event.clientX - imageCropPointer.x) * ratio;
+    IMAGE_CROP_STATE.offsetY += (event.clientY - imageCropPointer.y) * ratio;
+    imageCropPointer.x = event.clientX;
+    imageCropPointer.y = event.clientY;
+    drawImageCrop();
+  });
+  const finishImageCropDrag = (event) => {
+    if (!imageCropPointer || imageCropPointer.id !== event.pointerId) return;
+    imageCropPointer = null;
+    $("imageCropCanvas").classList.remove("dragging");
+  };
+  $("imageCropCanvas").addEventListener("pointerup", finishImageCropDrag);
+  $("imageCropCanvas").addEventListener("pointercancel", finishImageCropDrag);
+  $("imageCropCanvas").addEventListener("lostpointercapture", () => {
+    imageCropPointer = null;
+    $("imageCropCanvas").classList.remove("dragging");
   });
   $("productDigitalFile").addEventListener("change", () => {
     const file = $("productDigitalFile").files?.[0];
