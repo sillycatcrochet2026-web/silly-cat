@@ -233,6 +233,10 @@ function renderProductDetail(){
         ${ratingMarkup}
         ${categoryMarkup}
         <p class="product-detail-price" data-detail-price>${formatBRL(effectivePrice(product,initialVariant))}</p>
+        <section class="product-detail-description" aria-labelledby="productDetailDescriptionTitle">
+          <h2 id="productDetailDescriptionTitle">${isDigital?"Sobre a receita":"Sobre a peça"}</h2>
+          <p>${escapeHtml(product.desc||(isDigital?"Receita de crochê em PDF criada pela Silly Cat.":"Peça artesanal feita com cuidado pela Silly Cat."))}</p>
+        </section>
         <p class="product-detail-payment-note">Pagamento seguro por Pix ou cartão via InfinitePay.</p>
         ${variantMarkup}
         <div class="product-detail-availability ${initialState.tone}" data-detail-availability role="status">${escapeHtml(initialState.message)}</div>
@@ -248,7 +252,6 @@ function renderProductDetail(){
       </article>
     </section>
     <section class="product-detail-info" aria-label="Informações do produto">
-      <article><span class="product-detail-info-icon" aria-hidden="true">✿</span><h2>${isDigital?"Sobre a receita":"Detalhes da peça"}</h2><p>${escapeHtml(product.desc||(isDigital?"Receita de crochê em PDF criada pela Silly Cat.":"Peça artesanal feita com cuidado pela Silly Cat."))}</p></article>
       <article><span class="product-detail-info-icon" aria-hidden="true">${isDigital?"PDF":"↔"}</span><h2>${isDigital?"Arquivo digital":"Dimensões para envio"}</h2><p>${isDigital?"Produto digital em formato PDF. Nenhum item físico será enviado.":dimensions?escapeHtml(dimensions):"As medidas e o peso serão confirmados no preparo do envio."}</p></article>
       <article><span class="product-detail-info-icon" aria-hidden="true">${isDigital?"↓":"🧶"}</span><h2>${isDigital?"Como receber":"Produção e prazo"}</h2><p>${isDigital?"Após a confirmação do pagamento, use o botão de download exibido na página do pedido.":productAllowsBackorder(product)?"Quando a quantidade ultrapassar o estoque, a produção pode levar até 7 dias antes do envio.":"Produto disponível conforme o estoque indicado acima."}</p></article>
     </section>`;
